@@ -94,4 +94,4 @@ Todo o jogo está em um único arquivo, `lib/main.dart`, dividido em blocos:
 
 ---
 
-Feito por Edinaldo-long
+
