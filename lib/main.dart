@@ -379,18 +379,33 @@ class VolleyGame extends FlameGame with KeyboardEvents {
       final t1 = playerTeam;
       final t2 = exhibitionRival;
       teams = [
-        TeamInfo('P1: ${t1.name}', t1.color, t1.trim, 0.7, t1.flagEmoji),
-        TeamInfo('P2: ${t2.name}', t2.color, t2.trim, 0.7, t2.flagEmoji),
+        TeamInfo('P1: ${t1.name}', t1.color, t1.trim, 0.75, t1.flagEmoji),
+        TeamInfo('P2: ${t2.name}', t2.color, t2.trim, 0.75, t2.flagEmoji),
       ];
     } else if (mode == 0) {
       final rival = tournamentRivals[math.min(round, tournamentRivals.length - 1)];
-      teams = [playerTeam, rival];
+      // Escala o nível dos adversários do Torneio conforme a dificuldade escolhida
+      // Fácil: 0.10 a 0.32 | Normal: 0.35 a 0.65 | Difícil: 0.65 a 0.95
+      final baseProgress = (round / 3.0).clamp(0.0, 1.0);
+      final double rivalLevel;
+      if (difficulty == 0) {
+        rivalLevel = 0.10 + baseProgress * 0.22;
+      } else if (difficulty == 1) {
+        rivalLevel = 0.35 + baseProgress * 0.30;
+      } else {
+        rivalLevel = 0.65 + baseProgress * 0.30;
+      }
+      teams = [
+        playerTeam,
+        TeamInfo(rival.name, rival.color, rival.trim, rivalLevel, rival.flagEmoji),
+      ];
     } else {
-      const lv = [0.18, 0.58, 0.92];
+      // Amistoso: nível balanceado para acessibilidade real
+      const lv = [0.10, 0.45, 0.85];
       final rival = exhibitionRival;
       teams = [
         playerTeam,
-        TeamInfo(rival.name, rival.color, rival.trim, lv[difficulty], rival.flagEmoji),
+        TeamInfo(rival.name, rival.color, rival.trim, lv[difficulty.clamp(0, 2)], rival.flagEmoji),
       ];
     }
   }
@@ -702,7 +717,16 @@ class VolleyGame extends FlameGame with KeyboardEvents {
             blocker.tx = kMid - dirN * 32;
             blocker.ty = by.clamp(25.0, kWd - 25).toDouble();
             final pr = _predict(148);
-            if (blocker.onGround &&
+            // No modo fácil, a CPU raramente salta para bloquear (20%), permitindo que a cortada do jogador passe
+            final willBlock = (team == 0)
+                ? true
+                : (difficulty == 0
+                    ? (_rnd.nextDouble() < 0.20)
+                    : (difficulty == 1
+                        ? (_rnd.nextDouble() < 0.50)
+                        : (_rnd.nextDouble() < 0.85)));
+            if (willBlock &&
+                blocker.onGround &&
                 (bx - kMid).abs() < 220 &&
                 bz > 105 &&
                 pr.t < 0.50 + blocker.jumpErr) {
@@ -744,8 +768,10 @@ class VolleyGame extends FlameGame with KeyboardEvents {
         my /= len;
       }
       final spd = p.human
-          ? 290.0
-          : (_isHumanTeam(p.team) ? 150 + 170 * lvl : 100 + 150 * lvl);
+          ? (difficulty == 0 ? 360.0 : (difficulty == 1 ? 330.0 : 300.0))
+          : (_isHumanTeam(p.team)
+              ? 200 + 160 * lvl
+              : (difficulty == 0 ? 90 + 90 * lvl : (difficulty == 1 ? 100 + 130 * lvl : 110 + 160 * lvl)));
       final airK = p.onGround ? 1.0 : 0.6;
       p.x += mx * spd * airK * dt;
       p.y += my * spd * airK * dt;
@@ -831,7 +857,8 @@ class VolleyGame extends FlameGame with KeyboardEvents {
     final hx = p.x + face * 10;
     final hz = p.z + (p.onGround ? 65 : 86);
     final dx = bx - hx, dy = (by - p.y) * 0.8, dz = bz - hz;
-    final reach = p.human ? (p.onGround ? 115.0 : 125.0) : (p.onGround ? 85.0 : 95.0);
+    final baseReach = difficulty == 0 ? 140.0 : (difficulty == 1 ? 125.0 : 115.0);
+    final reach = p.human ? (p.onGround ? baseReach : baseReach + 10.0) : (p.onGround ? 85.0 : 95.0);
     if (dx * dx + dy * dy + dz * dz > reach * reach) return;
     if (p.human && !p.onGround && pads[p.team].hitBuf > 0.05 && p.vz > 220 && bz > hz + 20) {
       return;
@@ -868,8 +895,11 @@ class VolleyGame extends FlameGame with KeyboardEvents {
 
     final dist2D = math.sqrt((bx - p.x) * (bx - p.x) + (by - p.y) * (by - p.y));
 
-    // Passe para companheiro só ocorre se o jogador puxar o direcional explicitamente para trás (aimX < -0.45)
-    final wantPassToMate = p.human ? (aimX < -0.45 && idx == 0) : (!air && idx == 0 && _rnd.nextDouble() < 0.45);
+    // No toque 1 (recepção), por padrão passa para o companheiro armar o levantamento e possibilitar a cortada,
+    // a menos que o jogador empurre o analógico intencionalmente para a frente (aimX > 0.65) para devolver de primeira.
+    final wantPassToMate = p.human
+        ? (idx == 0 && aimX <= 0.65)
+        : (!air && idx == 0 && _rnd.nextDouble() < (difficulty == 0 ? 0.35 : 0.65));
 
     if (air && nearNet && bz > kNetH - 25) {
       // CORTADA POTENTE (Spike) - Ataque aéreo direto para a quadra adversária!
@@ -883,13 +913,27 @@ class VolleyGame extends FlameGame with KeyboardEvents {
       final effAimX = aimX * eval.accuracyFactor;
       final targetX = kMid + dirOpp * (70 + 330 * (effAimX + 1) / 2);
 
+      // No modo fácil, os ataques da CPU têm velocidade atenuada para dar tempo de reação real ao jogador
+      final double cpuSpeedMod;
+      if (!p.human) {
+        if (difficulty == 0) {
+          cpuSpeedMod = 0.68;
+        } else if (difficulty == 1) {
+          cpuSpeedMod = 0.88;
+        } else {
+          cpuSpeedMod = 1.05;
+        }
+      } else {
+        cpuSpeedMod = 1.0;
+      }
+
       BallPhysicsEngine.launchFast(
         ball,
         tx: targetX,
         ty: gyT,
         tz: BallPhysicsEngine.kBR,
         topspin: eval.topspin,
-        speedMultiplier: eval.speedMultiplier,
+        speedMultiplier: eval.speedMultiplier * cpuSpeedMod,
       );
       outgoing = true;
       ArcadeAudio.playSpike(perfect: eval.isPerfect);
@@ -1091,7 +1135,10 @@ class VolleyGame extends FlameGame with KeyboardEvents {
   void _updateAiServe(Player s, double dt) {
     final lvl = _lvl(s.team);
     final dirOpp = s.team == 0 ? 1.0 : -1.0;
-    final wantsJumpSpike = lvl > 0.4 || (lvl > 0.2 && _rnd.nextDouble() < 0.6);
+    // No modo fácil, a CPU nunca faz saque viagem mortal; faz saque simples e recebível
+    final wantsJumpSpike = (difficulty == 0)
+        ? false
+        : (lvl > 0.45 || (lvl > 0.25 && _rnd.nextDouble() < 0.5));
 
     if (wantsJumpSpike) {
       final targetX = bx - dirOpp * 10;
@@ -2209,11 +2256,50 @@ class _MenuState extends State<_Menu> {
               ],
             ),
           ),
-          const SizedBox(height: 14),
+          const SizedBox(height: 10),
+
+          // SELETOR GLOBAL DE DIFICULDADE (Torneio e Amistoso)
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: BoxDecoration(
+              color: const Color(0x33000000),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colors.white24),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text('DIFICULDADE:',
+                    style: TextStyle(color: Colors.amber, fontWeight: FontWeight.bold, fontSize: 12)),
+                const SizedBox(height: 4),
+                Wrap(
+                  spacing: 6,
+                  alignment: WrapAlignment.center,
+                  children: [
+                    for (var i = 0; i < 3; i++)
+                      ChoiceChip(
+                        label: Text(
+                          const ['Fácil 🟢', 'Normal 🟡', 'Difícil 🔴'][i],
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
+                            color: diff == i ? Colors.black : Colors.white,
+                          ),
+                        ),
+                        selected: diff == i,
+                        selectedColor: const [Color(0xFF69F0AE), Color(0xFFFFD54F), Color(0xFFFF5252)][i],
+                        onSelected: (_) => setState(() => diff = i),
+                      ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
 
           // MODO TORNEIO
           FilledButton.icon(
-            onPressed: () => g.startMatch(0),
+            onPressed: () => g.startMatch(0, diff: diff),
             icon: const Icon(Icons.emoji_events),
             label: const Text('JOGAR TORNEIO (4 FASES)'),
           ),
@@ -2350,20 +2436,7 @@ class _MenuState extends State<_Menu> {
               ],
             ),
           ),
-          const SizedBox(height: 6),
-          Wrap(
-            spacing: 8,
-            alignment: WrapAlignment.center,
-            children: [
-              for (var i = 0; i < 3; i++)
-                ChoiceChip(
-                  label: Text(const ['Fácil', 'Normal', 'Difícil'][i]),
-                  selected: diff == i,
-                  onSelected: (_) => setState(() => diff = i),
-                ),
-            ],
-          ),
-          const SizedBox(height: 6),
+          const SizedBox(height: 10),
           FilledButton.tonalIcon(
             onPressed: () => g.startMatch(1, diff: diff),
             icon: const Icon(Icons.person),

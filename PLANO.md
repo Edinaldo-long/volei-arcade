@@ -1,185 +1,173 @@
-# Plano de Engenharia de Gameplay & Game Feel — Vôlei Arcade Flame/Flutter
+# Plano Modular de Engenharia de Gameplay & Lances Especiais — Vôlei Arcade Flame/Flutter
 
-**Autor:** Senior Game Designer & Gameplay Engineer  
-**Documento de Origem:** `lib/.specs/VOLLEYBALL_SPEC.md`  
-**Status:** Implementado e Validado com Testes de Unidade e Integração (100% Passing, 0 Analyzer Warnings)  
-**Versão:** 1.0.0  
-
----
-
-## 1. Diagnóstico do Estado Atual do Projeto
-
-### 1.1 Arquitetura e Estrutura de Código
-- **Arquivo Único Monolítico (`lib/main.dart` - ~1.730 linhas):**
-  - Concentra dados de estado (`Player`, `Pad`, `TeamInfo`, `Pred`), lógica de ciclo de vida (`VolleyGame`), simulação física pseudo-3D, IA oponente, renderização em Canvas (sprites pixel art, quadra, torcida, HUD) e componentes de UI Flutter (`_Menu`, `_Controls`, `_Result`, `_Joystick`).
-  - *Diagnóstico técnico:* A física atual e os efeitos estão fortemente acoplados ao loop de renderização e predição. Para implementar novos sistemas de partículas, rastro, hitstop e topspin com precisão e manutenibilidade, é essencial modularizar ou isolar os subsistemas de física e feedback através de classes de serviço bem definidas.
-
-### 1.2 Física da Bola
-- **Simulação Balística Atual:**
-  - Gravidade constante `kG = 900`.
-  - Lançamentos calculados por aproximação estática (`_launchTo` e `_launchFast`), definindo velocidade inicial $v_{x0}, v_{y0}, v_{z0}$ para cruzar um tempo $tt$.
-  - Sem forças dinâmicas de **arrasto aerodinâmico (air drag)** e **efeito Magnus (topspin/backspin)**.
-  - O corte atual usa uma rotação visual estática (`bAng += bvx * dt * 0.02`), mas a trajetória em si não curva para baixo; a sensação resultante é de uma trajetória rígida, onde a bola viaja em linha reta ou parábola uniforme, parecendo ora "leve demais", ora previsível.
-- **Predição de Trajetória (`_predict`):**
-  - Passo fixo de simulação forward (`t += 0.02`), que sofrerá discrepâncias se adicionarmos forças aerodinâmicas sem atualizar a predição da IA e do retículo.
-
-### 1.3 Sistema de Toques e Cortada
-- **Detecção de Contato:**
-  - Esfera de alcance euclidiana simplificada (`dx*dx + dy*dy*0.8 + dz*dz <= reach*reach`).
-  - Não avalia a altura relativa do impacto no ápice do salto nem o vetor de antecipação do jogador.
-  - A cortada é disparada sempre na mesma velocidade e trajetória com base apenas em estar no ar e acima da rede (`air && idx >= 1 && nearNet && bz > kNetH - 15`).
-- **Feedback de Timing Inexistente:**
-  - O jogador não tem indicação se bateu cedo demais, tarde demais ou no "sweet spot". Não há premiação para a execução técnica no topo do salto.
-
-### 1.4 Game Feel & "Juice"
-- **Ausência de Hitstop (Freeze Frame):** O impacto da cortada é contínuo, sem aquele instante de congelamento cinemático (micro-pausa de 40-70ms) que confere peso dramático ao golpe.
-- **Screen Shake Rígido:** Tremor uniforme aleatório linear (`canvas.translate`), sem decaimento de trauma polinomial ($trauma^2$) e sem vetor direcional congruente com o ataque.
-- **Ausência de Squash & Stretch:** A bola é renderizada como círculo com raio estático $r = 15 \times \text{scale}(y)$. Não se deforma no impacto potente nem na compressão com o solo.
-- **Ausência de Trilha de Alta Velocidade (Streak/Trail):** Cortes potentes exibem apenas fagulhas (`Spark`), sem rastro fluido destacando a linha de ataque.
-- **Retículo de Queda Básico:** O anel atual não fornece sensação de urgência/tempo até o impacto (retículo estático pulsante).
+**Autor:** Senior Game Designer & Gameplay Engineer (Flutter & Flame)  
+**Documento de Origem:** `lib/.specs/VOLLEYBALL_SPEC.md` (v2.0.0)  
+**Status:** Proposta Completa para Validação / Aguardando Aprovação  
+**Versão:** 2.0.0  
 
 ---
 
-## 2. Visão de Game Design & Arquitetura Alvo
+## 1. Visão Geral da Arquitetura & Diretrizes de Execução
 
-### 2.1 Modelo Físico Aprimorado (Pseudo-3D com Magnus e Arrasto)
-A aceleração da bola em cada sub-passo será regida por:
-$$\vec{a} = \vec{g} + \vec{a}_{\text{drag}} + \vec{a}_{\text{magnus}}$$
+Este plano detalha a implementação incremental e modular dos novos lances essenciais e mecânicas de gameplay para o Vôlei Arcade, mantendo a estabilidade retro arcade, zero regressões em testes e 60 FPS estáveis na Web.
 
-1. **Gravidade Base ($\vec{g}$):** $(0, 0, -kG)$ com calibração esportiva ($kG \approx 1050 \text{ px/s}^2$).
-2. **Arrasto Aerodinâmico ($\vec{a}_{\text{drag}}$):**
-   $$\vec{a}_{\text{drag}} = -c_d \cdot \|\vec{v}\| \cdot \vec{v}$$
-   Gera perda natural de energia nas pontas, evitando que a bola pareça um projétil de ferro no vácuo.
-3. **Efeito Magnus / Topspin ($\vec{a}_{\text{magnus}}$):**
-   - Cortadas com topspin agressivo aplicam aceleração vertical para baixo ($a_z < 0$), provocando uma "mergulhada" violenta da bola na quadra adversária após passar pela fita.
-   - Levantamentos com backspin suave mantêm a bola mais tempo flutuando no ar para o atacante armar o golpe.
+### Princípios de Engenharia Adotados:
+1. **Desenvolvimento Orientado a Especificação (Spec-Driven):** Cada lance segue rigorosamente a física, o timing e o game feel descritos na spec.
+2. **Modularidade e Baixo Acoplamento:** As regras de física de trajetórias residem em `BallPhysicsEngine`, os cálculos de contato e timings em `TimingEvaluator`, e o estado visual e temporizações em controladores dedicados.
+3. **Execução Incremental:** Implementação em 6 etapas isoladas e testadas individualmente, garantindo que o jogo permaneça jogável e compilável a cada passo.
+4. **Resolução Preventiva de Falhas:** Blindagem total contra exceções nulas (*TypeError: null is not a subtype of type String*).
 
-### 2.2 Sistema de Janelas de Timing (Mecânica de Maestria)
-O contato com a bola será classificado em 3 categorias com base na distância ao *Ponto Ideal de Contato (Sweet Spot)* e na velocidade relativa:
-- **PERFEITO (Sweet Spot):** Janela de $\pm 45 \text{ ms}$ e $\Delta z \approx 0$ no topo do salto.
-  - Multiplicador de velocidade: $1.35\times$.
-  - Efeito: Ativação de Topspin Máximo, Hitstop dramático (65ms), Screen Shake direcional intenso, rastro de fogo/energia e popup visual dourado `"PERFEITO!"`.
-- **BOM (Good):** Janela de $\pm 110 \text{ ms}$.
-  - Multiplicador de velocidade: $1.0\times$.
-  - Efeito: Trajetória planejada padrão, micro-shake (30ms), popup ciano `"BOM"`.
-- **TARDE / CEDO (Sub-ótimo):** Janela marginal de alcance.
-  - Multiplicador de velocidade: $0.75\times$.
-  - Efeito: Sem hitstop, maior dispersão de mira (risco de mandar bola na rede ou fora da quadra), popup vermelho/cinza `"CEDO"` ou `"TARDE"`.
+---
 
-### 2.3 Matriz de "Juice" e Efeitos Visuais
-| Ação | Hitstop | Screen Shake | Deformação Bola (Squash) | Trail / Rastro | Partículas |
+## 2. Divisão Modular em 6 Etapas
+
+```mermaid
+flowchart TD
+    E1["Etapa 1: Estabilidade & Correção Preventiva (TypeError)"] --> E2["Etapa 2: Motor Físico & Trajetórias Especiais"]
+    E2 --> E3["Etapa 3: Ataques Avançados & Finalizações"]
+    E3 --> E4["Etapa 4: Defesas & Bloqueios Avançados"]
+    E4 --> E5["Etapa 5: Saques Dinâmicos (Barra de Timing & Flutuante)"]
+    E5 --> E6["Etapa 6: Efeitos Visuais, Áudio & Validação de Testes"]
+```
+
+---
+
+### ETAPA 1: Estabilidade & Correção Preventiva (TypeError)
+**Objetivo:** Identificar, auditar e blindar preventivamente todos os pontos de injeção de String no HUD, nos popups de timing, no mapeamento de Web Audio e nos widgets de bandeira, eliminando definitivamente exceções do tipo `TypeError: null: type 'Null' is not a subtype of type 'String'`.
+
+* **1.1. Blindagem de Widgets de HUD e Placar (`lib/main.dart`):**
+  - Proteger referências a `teams[0].name` e `teams[1].name` com `?? 'TIME'`.
+  - Garantir que nomes de equipes criados no modo Versus (`TeamInfo('P1: ${t1.name}')`) nunca recebam valores nulos.
+  - Assegurar que `_msgText` e mensagens temporárias nunca recebam strings nulas.
+* **1.2. Blindagem de Bandeiras e Seleção de Países (`lib/rendering/flag_renderer.dart`):**
+  - Alterar assinatura de `flagWidget(String? countryName)` e `drawFlag(..., {required String? countryName})` para aceitar tipos anuláveis e aplicar fallback defensivo:
+    `final name = (countryName != null && countryName.trim().isNotEmpty) ? countryName : 'BRASIL';`
+* **1.3. Blindagem de Timing Popups (`lib/effects/timing_popup.dart`):**
+  - Garantir que `TimingPopupItem.text` receba validação: se `text` for nulo ou vazio, usar fallback `'BOM'`.
+* **1.4. Blindagem do Sistema de Áudio (`lib/audio/arcade_audio_web.dart` & `arcade_audio_stub.dart`):**
+  - Adicionar indexação segura e clamp em `trackNames`:
+    `trackNames[(_currentTrack % trackNames.length).abs()]`
+  - Tratar chamadas de interop JS com retorno nulo ou undefined.
+* **Critério de Validação da Etapa 1:** Compilação limpa, zero erros de runtime no console do navegador e testes existentes 100% passando.
+
+---
+
+### ETAPA 2: Motor Físico Avançado & Trajetórias Especiais
+**Objetivo:** Expandir `BallPhysicsEngine` com suporte a dinâmicas aerodinâmicas avançadas requeridas pelos novos lances (trajetória senoidal turbulenta do saque flutuante e amortecimento com desaceleração brusca de largadinha).
+
+* **2.1. Trajetória de Saque Flutuante (Oscilação Harmônica sem Topspin):**
+  - Adicionar parâmetros de turbulência em `BallPhysicsState`: `double floatWaveTime`, `double floatAmpY`, `double floatAmpZ`.
+  - Em `BallPhysicsEngine.step`, quando `ball.isFloating` estiver ativo:
+    $$vy_{\text{flut}} = A_y \cdot \sin(18.0 \cdot t + \phi) \cdot e^{-0.15 t}$$
+    $$vz_{\text{flut}} = A_z \cdot \cos(24.0 \cdot t + \phi) \cdot e^{-0.15 t}$$
+  - A bola viaja sem girar (`angle` congelado), oscilando suavemente e caindo de forma não linear antes do solo.
+* **2.2. Lançamento de Largadinha Amortecida (`BallPhysicsEngine.launchTip`):**
+  - Criar método específico de largadinha:
+    - Desaceleração de 65% na velocidade horizontal ($vx \times 0.38$, $vy \times 0.38$).
+    - Impulso vertical controlado ($vz \approx 85\text{px/s}$) que passa a rede com folga de $20\text{px}$ e desce suavemente na zona morta (entre $50\text{px}$ e $110\text{px}$ da fita).
+    - Topspin zerado.
+* **2.3. Atualização do Algoritmo de Predição (`BallPhysicsEngine.predict`):**
+  - Garantir que o integrador de predição contemple as perturbações do saque flutuante e da largadinha para a IA reagir realisticamente.
+* **Critério de Validação da Etapa 2:** Testes unitários para `launchTip`, oscilação de `isFloating` e estabilidade de integração numérica.
+
+---
+
+### ETAPA 3: Ataques Avançados & Finalizações
+**Objetivo:** Implementar os 4 lances ofensivos essenciais no ciclo de rali e nos controles dos jogadores.
+
+* **3.1. Super Cortada Cravada (Monster Spike):**
+  - Gatilho: Ápice do salto (`relativeZ` entre 60 e 125, $|playerVz| \le 160$, `dist2D <= 80px`) + analógico ofensivo (`aimX > 0.25`).
+  - Efeito: Dispara `BallPhysicsEngine.launchFast` com multiplicador $1.38\times$, topspin $+28.0$, hitstop de $60\text{ms}$, trauma de screen shake $0.70$ e popup dourado `"CORTADA PERFEITA!"`.
+* **3.2. Largadinha Tática (The Tip / Feint):**
+  - Gatilho: No ar próximo à rede, analógico neutro ou puxado para trás (`aimX < 0.15`) ao pressionar o botão de bater (ou segundo toque com intenção de largada).
+  - Ação: Dispara `BallPhysicsEngine.launchTip(ball, dirOpp)`.
+  - Feedback: Som sutil de ponta dos dedos, popup ciano/lilás `"LARGADINHA!"` e bloqueio rival salta em vão.
+* **3.3. Ataque Rápido de Meio (Quick Attack / Tempo 1):**
+  - Gatilho: O jogador central (slot 1) inicia corrida e salto antecipado rente à rede antes do levantamento.
+  - Ação: O levantador despacha um passe rápido e rasante ($apexZ \approx 165\text{px}$ em vez de $240\text{px}$). O atacante golpeia na subida da bola, encurtando o tempo de reação adversário para $0.20\text{s}$.
+  - Feedback: Popup `"ATAQUE RÁPIDO!"` e rastro azul-ciano.
+* **3.4. Ataque do Fundo (Pipe Attack / Linha dos 3 Metros):**
+  - Gatilho: Jogador de trás (slot 0) recebe bola levantada no centro e salta de trás da linha dos 3 metros ($x < 300\text{px}$ ou $x > 600\text{px}$).
+  - Ação: Salto com impulso horizontal estendido ($vx_{\text{impulse}} \approx 340\text{px/s}$), sobrevoando a linha no ar e cravando a bola no terço final da quadra oposta.
+  - Feedback: Marca de poeira na decolagem dos 3m e popup `"PIPE ATTACK!"`.
+* **Critério de Validação da Etapa 3:** Testes automatizados cobrindo cada um dos 4 tipos de ataque com verificação de trajetórias, velocidades e ratings.
+
+---
+
+### ETAPA 4: Defesas & Bloqueios Avançados
+**Objetivo:** Implementar os lances defensivos de alto nível para ralis emocionantes.
+
+* **4.1. Peixinho Defensivo (Pancake / Dive Save):**
+  - Gatilho: Bola rápida prestes a quicar no chão ($10\text{px} \le bz \le 35\text{px}$, tempo até queda $< 0.16\text{s}$) e defensor em distância de mergulho ($65\text{px} \le dist2D \le 145\text{px}$).
+  - Ação: O atleta mergulha em slide rente ao piso (`p.diveTimer = 0.45s`, deslizando na quadra), estica a mão espalmada sob a bola e a rebate para cima em parábola vertical de recuperação ($vz = 380\text{px/s}$).
+  - Feedback: Micro-slowdown dinâmico ($dt \times 0.35$ por $120\text{ms}$), partículas de poeira deslizando pelo piso, popup dourado `"PEIXINHO DEFENSIVO!"`.
+* **4.2. Bloqueio Toco (Monster Block / Roof):**
+  - Gatilho: Salto de bloqueio na rede sincronizado com a cortada rival a menos de $35\text{px}$ da fita, com suporte a bloqueio duplo se o companheiro estiver junto.
+  - Ação: A bola é rebatida diretamente para o solo da quadra atacante ($bvx = dirOpp \times 560\text{px/s}$, $bvz = -220\text{px/s}$).
+  - Feedback: Hitstop de $60\text{ms}$, tremor horizontal de câmera, som pesado de abafamento e popup `"SUPER BLOQUEIO TOCO!"`.
+* **4.3. Recuperação Fora da Quadra:**
+  - Gatilho: Bolas desviadas no bloqueio que voam além das linhas laterais ou de fundo da quadra.
+  - Ação: Jogador tem raio de locomoção liberado na área de escape externa (até $120\text{px}$ fora da quadra), corre em velocidade ampliada ($1.25\times$) e desfere manchete invertida em arco alto devolvendo a bola para a quadra amiga.
+  - Feedback: Aplauso imediato da torcida e popup `"RECUPERAÇÃO ESPETACULAR!"`.
+* **Critério de Validação da Etapa 4:** Testes de física para pancake save no último frame, colisão de teto de bloqueio e resgate externo.
+
+---
+
+### ETAPA 5: Saques Dinâmicos (Barra de Timing & Flutuante)
+**Objetivo:** Oferecer variedade tática e controle refinado na fase de saque.
+
+* **5.1. Saque Viagem Potente com Mini-Barra Visual de Timing:**
+  - Jogador saca lançando a bola para cima e salta.
+  - Mini-barra de timing curva/horizontal renderizada acima do jogador:
+    - Indicador em tempo real percorrendo a barra durante o salto.
+    - Zona central dourada (Perfeito): saque com $1.35\times$ de velocidade, topspin agressivo e grande chance de quebrar a recepção ou marcar Ace.
+    - Zona intermediária ciano (Bom): saque com $1.15\times$ de velocidade.
+    - Zona de borda (Cedo/Tarde): saque lento ou com risco de rede.
+* **5.2. Saque Flutuante com Oscilação Senoidal Imprevisível:**
+  - Executado sem corrida de viagem com toque seco no centro da bola.
+  - Ativa o modo `ball.isFloating = true` com topspin 0 e perturbação senoidal no ar.
+  - A bola não gira visualmente e oscila lateralmente, gerando incerteza de recepção.
+  - Popup `"SAQUE FLUTUANTE!"`.
+* **Critério de Validação da Etapa 5:** Testes com avaliação de saque viagem e trajetória senoidal do flutuante.
+
+---
+
+### ETAPA 6: Efeitos Visuais (Juice), Áudio & Validação de Testes
+**Objetivo:** Consolidar todos os novos feedbacks audiovisuais, estender a suíte de testes de jogabilidade e validar a compilação Web.
+
+* **6.1. Efeitos Visuais & Partículas:**
+  - Rastro contínuo com partículas para o Monster Spike e o Saque Viagem Perfeito.
+  - Efeito de rastro de poeira no solo para o mergulho de Peixinho.
+  - Brilho de choque na fita da rede para o Bloqueio Toco.
+* **6.2. Efeitos Sonoros Retrô no `ArcadeAudio`:**
+  - Síntese de áudio para o estalo do Monster Spike, o amortecimento da Largadinha, o impacto do Peixinho e a buzina de Ace.
+* **6.3. Bateria Completa de Testes Automatizados:**
+  - Expandir `test/gameplay_physics_test.dart` com testes dedicados para cada um dos 9 novos lances.
+  - Garantir 100% de aprovação em todos os testes (`flutter test`).
+  - Executar compilação completa para Web (`flutter build web --release`).
+* **Critério de Validação da Etapa 6:** Relatório de testes com 100% dos cenários validados e build web gerado sem erros.
+
+---
+
+## 3. Matriz de Ativação dos Lances e Parâmetros Físicos
+
+| Lance | Posição / Contexto | Comando / Gatilho | Velocidade ($v$) | Topspin ($\omega$) | Hitstop / Efeito |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| **Manchete / Toque 1** | 0 ms | 0 px | Leve achatamento vertical ($0.85/1.15$) | Nenhum | Brilho suave no ponto de contato |
-| **Levantamento / Toque 2**| 0 ms | 0 px | Recuperação elástica natural | Nenhum | 4 partículas circulares |
-| **Cortada Normal** | 40 ms | 5 px linear | Estiramento longitudinal ($1.30/0.75$) | Trilha de 4 frames translúcidos | 12 faíscas direcionais |
-| **Cortada PERFEITA** | 70 ms | 10 px trauma² | Estiramento extremo ($1.50/0.65$) | Rastro contínuo cônico com glow | Onda de choque + 25 partículas |
-| **Bloqueio Bem-Sucedido** | 60 ms | 8 px horizontal | Achatamento no plano frontal | Explosão de impacto na rede | Faíscas metálicas azuis |
-| **Impacto no Chão** | 0 ms | 3 px | Achatamento contra o piso ($1.40/0.60$) | Dissipação imediata do rastro | Nuvem de poeira da quadra |
+| **Super Cortada Cravada** | Ápice salto na rede | Bater + analógico frente/baixo | $1.38\times$ ($tt \approx 0.28\text{s}$) | $+28.0$ a $+32.0$ | Hitstop $60\text{ms}$ + Shake $0.70$ + Rastro Dourado |
+| **Largadinha Tática** | No ar na rede | Toque suave + analógico neutro/trás | $0.38\times$ ($tt \approx 0.45\text{s}$) | $0.0$ | Queda curta atrás do bloqueio ($50\text{px}$ a $110\text{px}$) |
+| **Ataque Rápido Meio** | Tempo 1 / Fita | Levantamento rasante + atacante subindo | $1.25\times$ ($tt \approx 0.20\text{s}$) | $+20.0$ | Parábola baixa ($apexZ \approx 165$), surpresa na defesa |
+| **Pipe Attack (3m)** | Trás dos 3 metros | Salto horizontal longo no meio | $1.30\times$ ($tt \approx 0.32\text{s}$) | $+24.0$ | Impulso horizontal longo, poeira na linha dos 3m |
+| **Peixinho Defensivo** | Rente ao chão ($bz < 35$) | Botão defesa + direção bola | Deslize $440\text{px/s}$ | Bola sobe $vz = 380$ | Micro-slowdown $120\text{ms}$ + Poeira no solo |
+| **Bloqueio Toco** | Fita na rede | Salto rente no frame do corte | Devolve $bvx = 560$ | $bvz = -220$ | Hitstop $60\text{ms}$ + Flash na rede + Devolução direta |
+| **Recuperação Fora** | Bola fora das 4 linhas | Corrida para além dos limites | Sprint $1.25\times$ | Arco alto ($apexZ = 260$) | Manchete invertida devolvendo para a quadra |
+| **Saque Viagem** | Fundo da quadra | Lançar + correr + saltar + barra timing | $1.35\times$ (Perfeito) | $+30.0$ | Mini-barra de timing sobre a cabeça + Rastro potente |
+| **Saque Flutuante** | Fundo da quadra | Toque seco sem salto / salto leve | $1.05\times$ | $0.0$ (Sem giro) | Oscilação senoidal no ar ($A_y \approx 14$, $A_z \approx 10$) |
 
 ---
 
-## 3. Plano de Implementação em 5 Etapas
-
-### ETAPA 1: Isolamento Modular e Infraestrutura de Dados
-**Objetivo:** Criar os tipos de dados e os serviços de física/feedback sem alterar o gameplay existente, mantendo estabilidade e compilação livre de erros.
-
-- [x] **1.1. Criação das Estruturas de Domínio:**
-  - `BallPhysicsState`: Armazenar vetores $(\vec{p}, \vec{v}, \vec{\omega})$, coeficientes de arrasto e rotação.
-  - `TimingRating`: Enum com `perfect`, `good`, `early`, `late`.
-  - `HitEvaluation`: Objeto com avaliação de timing, posição do impacto, intensidade do golpe e cor associada.
-- [x] **1.2. Criação do Gerenciador de Tempo & Hitstop (`HitstopController`):**
-  - Implementar o mecanismo de *freeze frame*: quando ativo, o `update(dt)` da física e dos atores congela temporariamente, mas o relógio de efeitos e renderizadores continuam consumindo delta time real.
-- [x] **1.3. Criação do Gerenciador de Câmera & Shake Baseado em Trauma:**
-  - Implementar padrão $Offset = Trauma^2 \times MaxOffset$, com decaimento exponencial suave e suporte a impulsos direcionais.
-
-### ETAPA 2: Novo Motor de Trajetória da Bola & Efeito Magnus
-**Objetivo:** Implementar física responsiva, realista e previsível, eliminando a sensação de bola flutuante ou artificial.
-
-- [x] **2.1. Equações Diferenciais com Integração Sub-Step:**
-  - Refatorar `_stepBall` para integrar aceleração com arrasto aerodinâmico suave e Magnus horizontal/vertical proporcional ao spin $\omega$.
-- [x] **2.2. Atualização dos Construtores de Trajetória (`_launchTo` e `_launchFast`):**
-  - Calibrar o algoritmo balístico inverso para contemplar o arrasto e garantir que passes e levantamentos alcancem a altura correta do atacante.
-- [x] **2.3. Atualização do Algoritmo de Predição (`_predict`):**
-  - Refinar o integrador numérico de predição rápida para que tanto a IA quanto o marcador de solo coincidam precisamente com o local e momento real da queda.
-- [x] **2.4. Colisão Realista com Fita da Rede e Chão:**
-  - Quique elástico no solo com deformação e fricção tangencial (a bola não desliza infinitamente).
-  - Tratamento aprimorado de toque na borda superior da fita da rede (efeito "fita"): redução de velocidade e desvio de rota.
-
-### ETAPA 3: Sistema Dinâmico de Toques, Janelas de Timing e Cortada
-**Objetivo:** Transformar o contato com a bola em uma mecânica rica de controle de timing, altura e mira direcional.
-
-- [x] **3.1. Avaliação do Ponto de Contato & Altura:**
-  - Medir a distância tridimensional entre o ponto de contato do jogador e o centro da bola.
-  - Para jogadas aéreas (cortada e bloqueio), calcular a proximidade em relação ao ápice vertical do salto do atacante.
-- [x] **3.2. Classificação de Timing e Aplicação de Atributos:**
-  - Gerar `TimingRating` correspondente (`PERFEITO`, `BOM`, `CEDO`, `TARDE`).
-  - Modular a velocidade e o topspin da bola de acordo com o rating:
-    - *Perfeito:* Velocidade máxima, ângulo agudo descendente, rotação rápida.
-    - *Tarde/Cedo:* Velocidade atenuada, trajetória mais alta/lenta e aberta.
-- [x] **3.3. Transição Clara dos 3 Toques:**
-  - *Toque 1 (Recepção):* Amortece o impacto de ataques adversários e direciona parabola alta para a zona do levantador.
-  - *Toque 2 (Levantamento):* Direciona a bola precisamente para a zona de corte na fita com curva suave.
-  - *Toque 3 (Ataque/Cortada):* Golpe descendente agressivo com transição de animação para swing vigoroso.
-- [x] **3.4. Calibração da IA Oponente:**
-  - Fazer a IA reagir ao nível de dificuldade com janelas de timing realistas (nível fácil erra o timing e comete erros não forçados; nível difícil busca timings perfeitos e bloqueios ajustados).
-
-### ETAPA 4: Game Feel, Juice & Efeitos Audiovisuais
-**Objetivo:** Aplicar os efeitos de polimento descritos na spec para entregar impacto satisfatório estilo arcade.
-
-- [x] **4.1. Acoplamento do Hitstop:**
-  - Disparar congelamento de 50ms a 70ms no instante do golpe de cortada perfeita e de 40ms em cortes normais.
-- [x] **4.2. Rastro Dinâmico da Bola (Motion Streak Trail):**
-  - Implementar buffer circular de posições passadas da bola (`bx, by, bz`).
-  - Renderizar polígonos/elipses com gradiente de transparência e escala decrescente apenas quando a velocidade linear exceder $450 \text{ px/s}$.
-- [x] **4.3. Squash & Stretch na Bola:**
-  - No método `_drawBall`, aplicar rotação alinhada ao vetor de velocidade e escalar canvas:
-    - Longarina na direção do movimento: $\text{scaleX} = 1 + \min(0.4, \|\vec{v}\| / 2000)$.
-    - Compressão transversal: $\text{scaleY} = 1 / \text{scaleX}$ (preservação de volume visual).
-    - Achatamento especial no impacto do solo e na mão do jogador.
-- [x] **4.4. Retículo Dinâmico no Chão (Target Reticle com Indicador Temporal):**
-  - Substituir o anel simples por um retículo dinâmico: anel externo concêntrico que encolhe até convergir com o centro exatamente no frame do impacto.
-  - Intensidade e opacidade proporcionais à proximidade da bola em relação ao piso.
-- [x] **4.5. Popups de Texto Flutuante ("PERFEITO!", "BOM", "TARDE/CEDO"):**
-  - Renderizar textos flutuantes estilizados com contorno 8-bit, emergindo do ponto de toque e subindo com interpolação ease-out e fade-out.
-- [x] **4.6. Partículas de Poeira e Impacto:**
-  - Partículas de poeira amarronzadas no choque da bola com a quadra e faíscas brilhantes de choque no contato aéreo.
-
-### ETAPA 5: Calibração Fina, Profiling e Aceitação
-**Objetivo:** Testar todos os cenários de rally, garantir 60 FPS e validar os critérios do `VOLLEYBALL_SPEC.md`.
-
-- [x] **5.1. Bateria de Testes de Jogabilidade:**
-  - Testar recepções de saques rápidos.
-  - Testar ralis longos (3 a 5 trocas de bola entre as equipes).
-  - Testar bloqueio na rede contra cortes perfeitos e normais.
-  - Testar situações de bola fora e bola na fita.
-- [x] **5.2. Verificação dos Critérios de Aceitação da Spec:**
-  - [x] Critério 1: *A bola não deve parecer leve/flutuante nem cair de forma abrupta e não natural.*
-  - [x] Critério 2: *Controles fluidos para posicionamento rápido do jogador sob a bola.*
-  - [x] Critério 3: *IA oponente com tempos de reação ajustáveis e tomadas de decisão coerentes.*
-- [x] **5.3. Profiling de Desempenho:**
-  - Garantir ausência de alocação excessiva de memória no garbage collector (reuso de buffers e `Paint` objects).
-
----
-
-## 4. Matriz de Parâmetros de Calibração Recomendados
-
-| Parâmetro | Valor Inicial Recomendado | Descrição |
-| :--- | :--- | :--- |
-| `kG` | `1050.0 px/s²` | Gravidade vertical calibrada para arco realista |
-| `kTopspinFactor` | `0.38` | Força vertical descendente extra em cortadas |
-| `kAirDrag` | `0.00015` | Coeficiente de resistência aerodinâmica da bola |
-| `kPerfectWindow` | `0.045 s` | Janela de tempo de ouro para contato ótimo |
-| `kGoodWindow` | `0.110 s` | Janela de tempo para toques regulares |
-| `kHitstopSpike` | `0.065 s` (65 ms) | Duração do freeze frame em cortada forte |
-| `kHitstopBlock` | `0.055 s` (55 ms) | Duração do freeze frame em bloqueio na rede |
-| `kMaxTraumaShake`| `12.0 px` | Amplitude de pico do screen shake |
-| `kTrailSpeedMin` | `480.0 px/s` | Velocidade mínima da bola para emitir rastro |
-
----
-
-## 5. Próximos Passos e Aguardo de Validação
-
-Este plano organiza a evolução técnica de forma segura e progressiva, mantendo a integridade do jogo retro arcade existente e elevando o nível de responsividade física e impacto sensorial.
+## 4. Próximos Passos e Aguardo de Validação
 
 > [!IMPORTANT]
-> **Aguardando aprovação:** Nenhum código do jogo foi alterado. Por favor, revise as etapas, a matriz de parâmetros e a abordagem proposta. Assim que validado, iniciaremos a execução conforme suas instruções.
+> **Status:** O arquivo `.specs/VOLLEYBALL_SPEC.md` foi atualizado com a especificação técnica completa de cada mecânica. Este arquivo `PLANO.md` descreve a arquitetura modular e as 6 etapas de execução.
+> **Conforme suas diretrizes, nenhum código foi alterado antes da sua aprovação.**  
+> Por favor, avalie as etapas propostas. Assim que você der o aval, iniciaremos a execução da **Etapa 1**!
