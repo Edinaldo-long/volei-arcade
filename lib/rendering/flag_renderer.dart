@@ -43,6 +43,8 @@ class FlagRenderer {
       _drawGermany(canvas, rect);
     } else if (normalized.contains('HOLANDA') || normalized.contains('NETHERLANDS')) {
       _drawNetherlands(canvas, rect);
+    } else if (normalized.contains('TREINADOR') || normalized.contains('TREINO')) {
+      _drawCoach(canvas, rect);
     } else {
       // Fallback genérico esportivo
       _drawGeneric(canvas, rect);
@@ -303,6 +305,44 @@ class FlagRenderer {
 
     fill.color = const Color(0xFF21468B);
     canvas.drawRect(Rect.fromLTWH(r.left, r.top + h3 * 2, r.width, h3 + 0.5), fill);
+  }
+
+  /// Emblema Tático do Treinador Silva
+  static void _drawCoach(Canvas canvas, Rect r) {
+    final fill = Paint()..style = PaintingStyle.fill..isAntiAlias = true;
+    fill.color = const Color(0xFF0D47A1);
+    canvas.drawRect(r, fill);
+
+    final clipRect = Rect.fromCenter(
+      center: r.center,
+      width: r.width * 0.65,
+      height: r.height * 0.72,
+    );
+    fill.color = const Color(0xFFFDD835);
+    canvas.drawRRect(RRect.fromRectAndRadius(clipRect, const Radius.circular(2)), fill);
+
+    fill.color = const Color(0xFF263238);
+    final clipHead = Rect.fromCenter(
+      center: Offset(r.center.dx, clipRect.top + 2),
+      width: clipRect.width * 0.5,
+      height: 3,
+    );
+    canvas.drawRect(clipHead, fill);
+
+    final linePaint = Paint()
+      ..color = const Color(0xFF0D47A1)
+      ..strokeWidth = 1.2
+      ..style = PaintingStyle.stroke;
+    canvas.drawLine(
+      Offset(clipRect.left + 3, clipRect.top + 6),
+      Offset(clipRect.right - 3, clipRect.top + 6),
+      linePaint,
+    );
+    canvas.drawLine(
+      Offset(clipRect.left + 3, clipRect.top + 10),
+      Offset(clipRect.right - 3, clipRect.top + 10),
+      linePaint,
+    );
   }
 
   /// Genérico

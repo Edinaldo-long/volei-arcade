@@ -471,5 +471,64 @@ void main() {
       game.toggleNextMusicTrack();
       expect(ArcadeAudio.currentTrack, equals((initialTrack + 1) % 4));
     });
+
+    test('TrainingController demo mode start, update and stop behavior', () {
+      final game = VolleyGame();
+      game.startTraining(drill: 0);
+
+      // Inicia o vídeo/demonstração interativa do lance perfeito
+      game.startDemo();
+      expect(game.training.isDemo, isTrue);
+      expect(game.training.isDemoNotifier.value, isTrue);
+      expect(game.training.demoCaptionNotifier.value, contains('LANÇAMENTO'));
+
+      // Avança o tempo da simulação da demonstração
+      game.update(1.0);
+      expect(game.training.demoCaptionNotifier.value.isNotEmpty, isTrue);
+
+      // Repete o vídeo demonstrativo
+      game.repeatDemo();
+      expect(game.training.isDemo, isTrue);
+      expect(game.training.demoTimer, equals(0.0));
+
+      // Finaliza a demonstração e devolve controle ao jogador
+      game.stopDemo();
+      expect(game.training.isDemo, isFalse);
+      expect(game.training.isDemoNotifier.value, isFalse);
+    });
+
+    test('TrainingController accuracy and rank calculations', () {
+      final ctrl = TrainingController();
+      expect(ctrl.rankLetter, equals('S')); // Padrão sem tentativas
+
+      // 4 acertos em 5 tentativas = 80% (Rank S)
+      ctrl.attempts = 5;
+      ctrl.successes = 4;
+      expect(ctrl.accuracy, equals(80));
+      expect(ctrl.rankLetter, equals('A'));
+
+      ctrl.successes = 5;
+      expect(ctrl.accuracy, equals(100));
+      expect(ctrl.rankLetter, equals('S'));
+      expect(ctrl.rankTitle, contains('MESTRE'));
+
+      // 1 acerto em 3 tentativas = 33% (Rank C)
+      ctrl.attempts = 3;
+      ctrl.successes = 1;
+      expect(ctrl.accuracy, equals(33));
+      expect(ctrl.rankLetter, equals('C'));
+    });
+
+    test('FlagRenderer draws coach tactical board without errors', () {
+      final recorder = PictureRecorder();
+      final canvas = Canvas(recorder);
+      FlagRenderer.drawFlag(
+        canvas,
+        const Rect.fromLTWH(0, 0, 40, 26),
+        countryName: 'TREINADOR',
+      );
+      final picture = recorder.endRecording();
+      expect(picture, isNotNull);
+    });
   });
 }

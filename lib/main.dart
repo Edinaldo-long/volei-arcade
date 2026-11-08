@@ -348,8 +348,260 @@ class VolleyGame extends FlameGame with KeyboardEvents {
     mode = 3;
     difficulty = 1;
     round = 0;
+    training.stopDemo();
     training.setDrill(drill);
     _beginMatch();
+  }
+
+  void startDemo() {
+    if (mode != 3) return;
+    training.startDemo();
+    paused = false;
+    _setupDemo();
+  }
+
+  void stopDemo() {
+    if (!training.isDemo) return;
+    training.stopDemo();
+    _beginMatch();
+    _msg('SUA VEZ! PRATIQUE O LANCE!', 2.0);
+  }
+
+  void repeatDemo() {
+    if (mode != 3) return;
+    training.startDemo();
+    _setupDemo();
+  }
+
+  void _setupDemo() {
+    phase = Phase.serving;
+    ballTossed = false;
+    _pauseTimer = 0;
+    _resetPositions();
+
+    final drill = training.currentDrill;
+    if (drill == TrainingDrill.serve) {
+      serving = 0;
+      final p0 = players[0];
+      p0.x = 80;
+      p0.y = 215;
+      p0.z = 0;
+      bx = p0.x + 10;
+      by = p0.y;
+      bz = 60;
+      training.setDemoCaption('1. LANÇAMENTO: Jogue a bola para o alto no saque viagem');
+    } else if (drill == TrainingDrill.reception) {
+      serving = 1;
+      phase = Phase.rally;
+      ballSide = 0;
+      bx = 640;
+      by = 215;
+      bz = 110;
+      bvx = -420;
+      bvy = 30;
+      bvz = 350;
+      final p0 = players[0];
+      p0.x = 120;
+      p0.y = 170;
+      training.setDemoCaption('1. OBSERVE: A bola viaja. Olhe o ANEL AZUL indicando o ponto de queda!');
+    } else if (drill == TrainingDrill.setting) {
+      serving = 0;
+      phase = Phase.rally;
+      ballSide = 0;
+      bx = 160;
+      by = 215;
+      bz = 120;
+      bvx = 50;
+      bvy = 0;
+      bvz = 280;
+      final p1 = players[1];
+      p1.x = 350;
+      p1.y = 215;
+      training.setDemoCaption('1. POSICIONE: Mova o levantador próximo à rede sob a bola');
+    } else if (drill == TrainingDrill.spike) {
+      serving = 0;
+      phase = Phase.rally;
+      ballSide = 0;
+      bx = 370;
+      by = 215;
+      bz = 180;
+      bvx = 20;
+      bvy = 0;
+      bvz = 100;
+      final p0 = players[0];
+      p0.x = 260;
+      p0.y = 215;
+      p0.z = 0;
+      training.setDemoCaption('1. APROXIMAÇÃO: Corra em direção à bola levantada na rede');
+    } else if (drill == TrainingDrill.block) {
+      serving = 1;
+      phase = Phase.rally;
+      ballSide = 1;
+      bx = 520;
+      by = 215;
+      bz = 180;
+      bvx = -500;
+      bvy = 0;
+      bvz = -120;
+      final p1 = players[1];
+      p1.x = 425;
+      p1.y = 215;
+      p1.z = 0;
+      training.setDemoCaption('1. LEITURA: Veja o atacante rival saltando na rede');
+    } else {
+      serving = 0;
+      phase = Phase.serving;
+      training.setDemoCaption('Demonstração de Rally Livre e troca de bolas');
+    }
+  }
+
+  void _resetPositions() {
+    _nextServe();
+  }
+
+  void _updateDemo(double dt) {
+    final t = training.demoTimer;
+    final drill = training.currentDrill;
+
+    if (drill == TrainingDrill.serve) {
+      final p0 = players[0];
+      if (t >= 0.8 && !ballTossed && phase == Phase.serving) {
+        _tossBall(p0);
+        training.setDemoCaption('2. CORRIDA: Corra para a frente enquanto a bola ganha altura');
+      }
+      if (t >= 0.8 && t < 1.4) {
+        p0.x += 180 * dt;
+      }
+      if (t >= 1.4 && p0.onGround) {
+        p0.vz = kJump;
+        training.setDemoCaption('3. SALTO: Salte no ápice da subida para alcançar a bola no topo');
+      }
+      if (t >= 1.85 && t < 2.05 && bz >= 120 && bvx < 200) {
+        bvx = 780;
+        bvy = -50;
+        bvz = -160;
+        ball.topspin = 60;
+        hitstop.trigger(0.07);
+        shake = 7;
+        _sparkBall(20, Colors.amber, 220);
+        ArcadeAudio.playSpike(perfect: true);
+        training.setDemoCaption('4. CORTADA: Golpeie no ponto mais alto mirando nos alvos da quadra!');
+      }
+      if (t >= 2.5 && t < 4.0) {
+        training.setDemoCaption('🎯 ALVO ATINGIDO (150 PTS)! Veja como a bola cai firme no alvo!');
+      }
+      if (t >= 5.0) {
+        training.setDemoCaption('✅ Fim da demonstração! Clique em REPETIR ou MINHA VEZ para treinar!');
+      }
+    } else if (drill == TrainingDrill.reception) {
+      final p0 = players[0];
+      if (t >= 0.2 && t < 1.6) {
+        final dx = 220.0 - p0.x;
+        final dy = 260.0 - p0.y;
+        final dist = math.sqrt(dx * dx + dy * dy);
+        if (dist > 4) {
+          p0.x += (dx / dist) * 160 * dt;
+          p0.y += (dy / dist) * 160 * dt;
+        }
+        if (dist < 30) {
+          training.setDemoCaption('2. POSICIONAMENTO: Entre no anel azul! Ele fica DOURADO quando você está pronto!');
+        }
+      }
+      if (t >= 1.7 && t < 2.0 && bz <= 80 && bvx < 0) {
+        bvx = 220;
+        bvy = -30;
+        bvz = 400;
+        ballSide = 0;
+        touches[0] = 1;
+        _sparkBall(14, const Color(0xFF00E5FF), 160);
+        ArcadeAudio.playTouch();
+        training.setDemoCaption('3. MANCHETE: Amorteça a bola suave em parábola alta para o levantador!');
+      }
+      if (t >= 2.4 && t < 4.0) {
+        training.setDemoCaption('🎯 RECEPÇÃO PERFEITA! Bola alta e controlada na rede!');
+      }
+      if (t >= 5.0) {
+        training.setDemoCaption('✅ Fim da demonstração! Clique em REPETIR ou MINHA VEZ para treinar!');
+      }
+    } else if (drill == TrainingDrill.setting) {
+      final p1 = players[1];
+      if (t >= 0.2 && t < 1.2) {
+        final dx = 330.0 - p1.x;
+        final dy = 215.0 - p1.y;
+        final dist = math.sqrt(dx * dx + dy * dy);
+        if (dist > 4) {
+          p1.x += (dx / dist) * 150 * dt;
+          p1.y += (dy / dist) * 150 * dt;
+        }
+      }
+      if (t >= 1.3 && t < 1.5 && bz <= 125) {
+        bvx = 30;
+        bvy = 0;
+        bvz = 420;
+        touches[0] = 2;
+        _sparkBall(15, const Color(0xFF81D4FA), 170);
+        ArcadeAudio.playTouch();
+        training.setDemoCaption('2. LEVANTAMENTO SUAVE: Bola alta na ponta da rede para armar o ataque!');
+      }
+      if (t >= 2.0 && t < 4.0) {
+        training.setDemoCaption('🎯 LEVANTAMENTO PERFEITO! A bola flutua pronta para o corte!');
+      }
+      if (t >= 5.0) {
+        training.setDemoCaption('✅ Fim da demonstração! Clique em REPETIR ou MINHA VEZ para treinar!');
+      }
+    } else if (drill == TrainingDrill.spike) {
+      final p0 = players[0];
+      if (t >= 0.2 && t < 0.8) {
+        p0.x += 160 * dt;
+      }
+      if (t >= 0.8 && p0.onGround) {
+        p0.vz = kJump;
+        training.setDemoCaption('2. SALTO: Salte no tempo certo para atingir a bola no ponto mais alto!');
+      }
+      if (t >= 1.25 && t < 1.45 && bz >= 130) {
+        bvx = 750;
+        bvy = 80;
+        bvz = -220;
+        ball.topspin = 70;
+        hitstop.trigger(0.08);
+        shake = 8;
+        _sparkBall(22, Colors.amber, 260);
+        ArcadeAudio.playSpike(perfect: true);
+        training.setDemoCaption('🔥 CORTADA PERFEITA NO ÁPICE! Bola indefensável na diagonal!');
+      }
+      if (t >= 2.0 && t < 4.0) {
+        training.setDemoCaption('🎯 PONTO DE ATAQUE! O adversário não tem como defender!');
+      }
+      if (t >= 5.0) {
+        training.setDemoCaption('✅ Fim da demonstração! Clique em REPETIR ou MINHA VEZ para treinar!');
+      }
+    } else if (drill == TrainingDrill.block) {
+      final p1 = players[1];
+      if (t >= 0.3 && p1.onGround) {
+        p1.vz = kJump;
+        training.setDemoCaption('2. PAREDÃO: Suba na rede junto com o braço do atacante!');
+      }
+      if (t >= 0.65 && t < 0.85 && bx >= 410 && bx <= 460) {
+        bvx = 650;
+        bvy = 0;
+        bvz = -250;
+        hitstop.trigger(0.09);
+        shake = 9;
+        _sparkBall(24, Colors.redAccent, 280);
+        ArcadeAudio.playBlock();
+        training.setDemoCaption('🧱 MONSTER BLOCK! Bola cravada no chão do adversário!');
+      }
+      if (t >= 1.4 && t < 4.0) {
+        training.setDemoCaption('🎯 BLOQUEIO IMPONENTE! Ponto direto do bloqueador!');
+      }
+      if (t >= 5.0) {
+        training.setDemoCaption('✅ Fim da demonstração! Clique em REPETIR ou MINHA VEZ para treinar!');
+      }
+    } else {
+      if (t >= 4.0) {
+        training.setDemoCaption('✅ Fim da demonstração! Clique em REPETIR ou MINHA VEZ para treinar!');
+      }
+    }
   }
 
   void togglePause() {
@@ -562,6 +814,13 @@ class VolleyGame extends FlameGame with KeyboardEvents {
       if (key == LogicalKeyboardKey.keyT && mode == 3) {
         training.nextDrill();
         _msg('TREINO: ${training.currentDrill.name.toUpperCase()}', 1.6);
+      }
+      if (key == LogicalKeyboardKey.keyD && mode == 3) {
+        if (training.isDemo) {
+          stopDemo();
+        } else {
+          startDemo();
+        }
       }
       final isStartKey = key == LogicalKeyboardKey.keyP ||
           key == LogicalKeyboardKey.escape ||
@@ -1224,7 +1483,21 @@ class VolleyGame extends FlameGame with KeyboardEvents {
 
   void _point(int scorer, String prefix) {
     if (mode == 3) {
-      training.evaluateBallLanding(bx, by, speed: ball.speed);
+      final earned = training.evaluateBallLanding(bx, by, speed: ball.speed);
+      if (earned > 0) {
+        _sparkBall(16, Colors.amber, 200);
+        ArcadeAudio.playPointCheer(perfect: earned >= 150);
+        _msg('+$earned PTS! NO ALVO!', 1.5);
+      } else if (bx >= 450 && bx <= 900 && by >= 0 && by <= 430) {
+        _msg('+50 PTS! DENTRO!', 1.2);
+      } else {
+        _msg('BOLA FORA! TENTE NOVAMENTE', 1.4);
+      }
+      serving = 0;
+      phase = Phase.pointPause;
+      _pauseTimer = 1.4;
+      ArcadeAudio.playWhistle();
+      return;
     }
     score[scorer]++;
     serving = scorer;
@@ -1248,6 +1521,13 @@ class VolleyGame extends FlameGame with KeyboardEvents {
   }
 
   void _afterPoint() {
+    if (mode == 3) {
+      serving = 0;
+      ballTossed = false;
+      _resetPositions();
+      phase = Phase.serving;
+      return;
+    }
     final a = score[0], b = score[1];
     final mx = math.max(a, b);
     if ((mx >= 15 && (a - b).abs() >= 2) || mx >= 21) {
@@ -1307,12 +1587,21 @@ class VolleyGame extends FlameGame with KeyboardEvents {
     shake = math.max(0, shake - 25 * dt);
     crowd = math.max(0, crowd - dt);
     if (_msgTimer > 0) _msgTimer -= dt;
-    if (mode == 3) training.update(dt);
+    if (mode == 3) {
+      training.update(dt);
+      if (training.isDemo) {
+        _updateDemo(dt);
+      }
+    }
 
     // Leitura contínua de controles (Gamepad API no navegador e desktop)
     GamepadReader.poll(
       onGamepadState:
           (playerIndex, ax, ay, left, right, up, down, jump, hit, start) {
+        if (mode == 3 && training.isDemo) {
+          if (start) stopDemo();
+          return;
+        }
         final targetIndex = (mode == 2) ? playerIndex : 0;
         if (targetIndex >= pads.length) return;
         final pad = pads[targetIndex];
@@ -1881,9 +2170,11 @@ class VolleyGame extends FlameGame with KeyboardEvents {
         sh);
   }
 
-  /// Retículo dinâmico no ponto de queda com indicador temporal de descida.
+  /// Retículo dinâmico no ponto de queda com indicador temporal de descida e guia de convergência da sombra.
   void _drawMarkers(Canvas canvas) {
     if (phase != Phase.rally) return;
+
+    final shadowPos = Offset(_sx(bx, by), _sy(by, 0));
 
     for (final t in const [0, 1]) {
       final m = marker[t];
@@ -1898,6 +2189,30 @@ class VolleyGame extends FlameGame with KeyboardEvents {
 
       final baseColor = inZone ? const Color(0xFFFFD600) : const Color(0xFF00E5FF);
       final pulse = 1.0 + 0.08 * math.sin(time * 12);
+
+      // 0. Linha Guia de Convergência da Sombra Atual até o Anel de Chegada
+      final distToShadow = (c - shadowPos).distance;
+      if (distToShadow > 14.0) {
+        final guidePaint = Paint()
+          ..color = baseColor.withValues(alpha: inZone ? 0.40 : 0.30)
+          ..strokeWidth = 2.0
+          ..style = PaintingStyle.stroke;
+
+        // Desenha linha pontilhada entre a sombra da bola e o anel
+        final steps = (distToShadow / 14).clamp(3, 20).toInt();
+        for (var i = 0; i < steps; i++) {
+          final tStep1 = i / steps;
+          final tStep2 = (i + 0.55) / steps;
+          final p1 = Offset.lerp(shadowPos, c, tStep1)!;
+          final p2 = Offset.lerp(shadowPos, c, tStep2)!;
+          canvas.drawLine(p1, p2, guidePaint);
+        }
+
+        // Ponto luminoso fluindo da sombra em direção ao anel
+        final flowT = (time * 2.5) % 1.0;
+        final flowPos = Offset.lerp(shadowPos, c, flowT)!;
+        canvas.drawCircle(flowPos, 3.5, _fill(baseColor.withValues(alpha: 0.8)));
+      }
 
       // 1. Elipse base de queda no chão
       final rBase = Rect.fromCenter(
@@ -1920,6 +2235,25 @@ class VolleyGame extends FlameGame with KeyboardEvents {
         final ringAlpha = (1.0 - (collapse - 1.0) / 1.8).clamp(0.2, 0.8);
         canvas.drawOval(rCollapse, _stroke(baseColor.withValues(alpha: ringAlpha), 2));
       }
+
+      // 3. Rótulo indicador claro acima do anel
+      final label = inZone ? 'ZONA IDEAL 🎯' : 'FIQUE AQUI!';
+      final tp = TextPainter(
+        text: TextSpan(
+          text: label,
+          style: TextStyle(
+            color: baseColor,
+            fontSize: inZone ? 11 : 9.5,
+            fontWeight: FontWeight.w900,
+            shadows: const [
+              Shadow(offset: Offset(1, 1), color: Colors.black),
+              Shadow(offset: Offset(-1, 1), color: Colors.black),
+            ],
+          ),
+        ),
+        textDirection: TextDirection.ltr,
+      )..layout();
+      tp.paint(canvas, c - Offset(tp.width / 2, 16 * sc + tp.height + 4));
     }
   }
 
@@ -2053,40 +2387,63 @@ class VolleyGame extends FlameGame with KeyboardEvents {
         borderRadius: 3.0,
       );
     }
-    String two(int v) => v.toString().padLeft(2, '0');
-    const led = Color(0xFFFFE600);
-    _text(canvas, two(score[0]), const Offset(cx - 62, 12), fs: 36, color: led, align: 1);
-    _text(canvas, two(score[1]), const Offset(cx + 62, 12), fs: 36, color: led, align: 1);
-    _text(canvas, ':', const Offset(cx, 11), fs: 36, color: led, align: 1);
+    if (mode == 3) {
+      // Placar LED da Academia de Treino (Pontuação acumulada e Taxa de Acertos)
+      final ptsStr = training.totalScore.toString().padLeft(4, '0');
+      _text(canvas, ptsStr, const Offset(cx - 52, 13), fs: 28, color: const Color(0xFFFFD600), align: 1);
+      _text(canvas, 'PONTOS', const Offset(cx - 52, 43), fs: 9, color: Colors.white70, align: 1);
 
-    // Saque e toques por time
-    if (phase != Phase.menu) {
-      final sx = serving == 0 ? cx - 108.0 : cx + 100.0;
-      canvas.drawRRect(
-        RRect.fromRectAndRadius(Rect.fromLTWH(sx, 14, 8, 8), const Radius.circular(2)),
-        _fill(Colors.white),
+      canvas.drawLine(
+        const Offset(cx, 14),
+        const Offset(cx, 50),
+        _stroke(const Color(0x55FFFFFF), 1.5),
       );
-    }
-    for (final t in const [0, 1]) {
-      for (var i = 0; i < 3; i++) {
-        final x = (t == 0 ? cx - 62 : cx + 62) + (i - 1) * 14.0;
-        final on = phase == Phase.rally && ballSide == t && i < touches[t];
+
+      final succStr = '${training.successes}/${training.attempts}';
+      _text(canvas, succStr, const Offset(cx + 52, 13), fs: 24, color: const Color(0xFF00E676), align: 1);
+      final accPct = training.accuracy;
+      _text(canvas, 'ACERTOS ($accPct%)', const Offset(cx + 52, 43), fs: 9, color: Colors.white70, align: 1);
+
+      _text(canvas, '${teams[0].name} (ALUNO)', const Offset(cx - 146, 64),
+          fs: 12, color: teams[0].color);
+      _text(canvas, 'PROF. SILVA (TREINO)', const Offset(cx + 146, 64),
+          fs: 12, color: const Color(0xFF4FC3F7), align: 2);
+    } else {
+      String two(int v) => v.toString().padLeft(2, '0');
+      const led = Color(0xFFFFE600);
+      _text(canvas, two(score[0]), const Offset(cx - 62, 12), fs: 36, color: led, align: 1);
+      _text(canvas, two(score[1]), const Offset(cx + 62, 12), fs: 36, color: led, align: 1);
+      _text(canvas, ':', const Offset(cx, 11), fs: 36, color: led, align: 1);
+
+      // Saque e toques por time
+      if (phase != Phase.menu) {
+        final sx = serving == 0 ? cx - 108.0 : cx + 100.0;
         canvas.drawRRect(
-          RRect.fromRectAndRadius(Rect.fromLTWH(x - 3, 49, 6, 5), const Radius.circular(1.5)),
-          _fill(on ? const Color(0xFFFFC107) : const Color(0x44FFFFFF)),
+          RRect.fromRectAndRadius(Rect.fromLTWH(sx, 14, 8, 8), const Radius.circular(2)),
+          _fill(Colors.white),
         );
       }
+      for (final t in const [0, 1]) {
+        for (var i = 0; i < 3; i++) {
+          final x = (t == 0 ? cx - 62 : cx + 62) + (i - 1) * 14.0;
+          final on = phase == Phase.rally && ballSide == t && i < touches[t];
+          canvas.drawRRect(
+            RRect.fromRectAndRadius(Rect.fromLTWH(x - 3, 49, 6, 5), const Radius.circular(1.5)),
+            _fill(on ? const Color(0xFFFFC107) : const Color(0x44FFFFFF)),
+          );
+        }
+      }
+      // nomes embaixo
+      _text(canvas, teams[0].name, const Offset(cx - 146, 64),
+          fs: 12, color: teams[0].color);
+      _text(canvas, teams[1].name, const Offset(cx + 146, 64),
+          fs: 12, color: teams[1].color, align: 2);
     }
-    // nomes embaixo
-    _text(canvas, teams[0].name, const Offset(cx - 146, 64),
-        fs: 12, color: teams[0].color);
-    _text(canvas, teams[1].name, const Offset(cx + 146, 64),
-        fs: 12, color: teams[1].color, align: 2);
     if (phase != Phase.menu) {
       final arenaTag = isBeach ? 'PRAIA' : 'GINÁSIO';
       final trackTag = musicEnabled ? 'TRILHA ${ArcadeAudio.currentTrack + 1}' : 'MUDO';
       if (mode == 3) {
-        _text(canvas, '[T] Trocar  [N] $trackTag', const Offset(12, 44), fs: 9, color: Colors.white70);
+        _text(canvas, '[T] Trocar  [D] Vídeo Demo  [N] $trackTag', const Offset(12, 44), fs: 9, color: Colors.white70);
       } else if (mode == 0) {
         final rName = const ['QUARTAS', 'SEMIFINAL', 'FINAL', 'GRANDE FINAL'][math.min(round, 3)];
         _text(canvas, 'TORNEIO: $rName', const Offset(12, 10), fs: 11, color: Colors.amber);
@@ -2612,29 +2969,85 @@ class _PauseMenuState extends State<_PauseMenu> {
             ),
           ),
           const SizedBox(height: 6),
-          FittedBox(
-            fit: BoxFit.scaleDown,
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                FlagRenderer.flagWidget(g.teams[0].name, width: 26, height: 17),
-                const SizedBox(width: 8),
-                Text(
-                  '${g.teams[0].name} ${g.score[0]}  ×  ${g.score[1]} ${g.teams[1].name}',
-                  style: const TextStyle(
-                      color: Colors.white70, fontSize: 16, fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(width: 8),
-                FlagRenderer.flagWidget(g.teams[1].name, width: 26, height: 17),
-              ],
+          if (g.mode == 3) ...[
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+              decoration: BoxDecoration(
+                color: const Color(0xFF101935),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: const Color(0xFF263238)),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: [
+                  Column(
+                    children: [
+                      const Text('PONTOS', style: TextStyle(color: Colors.white60, fontSize: 11)),
+                      Text(
+                        '${g.training.totalScore} pts',
+                        style: const TextStyle(color: Color(0xFFFFD600), fontSize: 16, fontWeight: FontWeight.bold),
+                      ),
+                    ],
+                  ),
+                  Container(width: 1, height: 26, color: Colors.white24),
+                  Column(
+                    children: [
+                      const Text('ACERTOS', style: TextStyle(color: Colors.white60, fontSize: 11)),
+                      Text(
+                        '${g.training.successes} / ${g.training.attempts}',
+                        style: const TextStyle(color: Color(0xFF00E676), fontSize: 16, fontWeight: FontWeight.bold),
+                      ),
+                    ],
+                  ),
+                  Container(width: 1, height: 26, color: Colors.white24),
+                  Column(
+                    children: [
+                      const Text('APROVEITAMENTO', style: TextStyle(color: Colors.white60, fontSize: 11)),
+                      Text(
+                        '${g.training.accuracy}% (${g.training.rankLetter})',
+                        style: const TextStyle(color: Color(0xFF4FC3F7), fontSize: 14, fontWeight: FontWeight.bold),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
             ),
-          ),
+          ] else ...[
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  FlagRenderer.flagWidget(g.teams[0].name, width: 26, height: 17),
+                  const SizedBox(width: 8),
+                  Text(
+                    '${g.teams[0].name} ${g.score[0]}  ×  ${g.score[1]} ${g.teams[1].name}',
+                    style: const TextStyle(
+                        color: Colors.white70, fontSize: 16, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(width: 8),
+                  FlagRenderer.flagWidget(g.teams[1].name, width: 26, height: 17),
+                ],
+              ),
+            ),
+          ],
           const SizedBox(height: 18),
           FilledButton.icon(
             onPressed: g.togglePause,
             icon: const Icon(Icons.play_arrow),
             label: const Text('CONTINUAR'),
           ),
+          if (g.mode == 3) ...[
+            const SizedBox(height: 10),
+            FilledButton.tonalIcon(
+              onPressed: () {
+                g.togglePause();
+                g.startDemo();
+              },
+              icon: const Icon(Icons.play_circle_fill, color: Color(0xFF00E5FF)),
+              label: const Text('VER DEMONSTRAÇÃO DO LANCE 🎬'),
+            ),
+          ],
           const SizedBox(height: 10),
           FilledButton.tonalIcon(
             onPressed: () {
@@ -2937,10 +3350,183 @@ class _ControlsState extends State<_Controls> {
                           setState(() {});
                         },
                       ),
+                      const SizedBox(width: 4),
+                      IconButton(
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(),
+                        icon: const Icon(Icons.play_circle_fill, color: Color(0xFF00E5FF), size: 21),
+                        tooltip: 'Ver demonstração em vídeo (D)',
+                        onPressed: () {
+                          game.startDemo();
+                          setState(() {});
+                        },
+                      ),
                     ],
                   ),
                 ),
               ),
+            ),
+
+          // Overlay de Demonstração / Vídeo do Treinador (Execução Perfeita do Lance)
+          if (game.mode == 3)
+            ValueListenableBuilder<bool>(
+              valueListenable: game.training.isDemoNotifier,
+              builder: (context, isDemo, _) {
+                if (!isDemo) return const SizedBox.shrink();
+                return Positioned.fill(
+                  child: Stack(
+                    children: [
+                      // Borda ciano sutil de transmissão / replay
+                      Positioned.fill(
+                        child: IgnorePointer(
+                          child: Container(
+                            decoration: BoxDecoration(
+                              border: Border.all(color: const Color(0xFF00E5FF).withValues(alpha: 0.6), width: 3.5),
+                            ),
+                          ),
+                        ),
+                      ),
+                      // Banner Superior: DEMONSTRAÇÃO DO TREINADOR
+                      Positioned(
+                        top: 14,
+                        left: 0,
+                        right: 0,
+                        child: Center(
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 7),
+                            decoration: BoxDecoration(
+                              color: const Color(0xF20A1338),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: const Color(0xFF00E5FF), width: 2),
+                              boxShadow: const [
+                                BoxShadow(color: Colors.black87, blurRadius: 10, offset: Offset(0, 4)),
+                              ],
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(Icons.videocam, color: Color(0xFF00E5FF), size: 20),
+                                const SizedBox(width: 8),
+                                Text(
+                                  '🎬 DEMONSTRAÇÃO: ${TrainingController.drillFullTitles[game.training.drillIndex]}',
+                                  style: const TextStyle(
+                                    color: Color(0xFF00E5FF),
+                                    fontWeight: FontWeight.w900,
+                                    fontSize: 12.5,
+                                    letterSpacing: 0.8,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                      // Legenda Dinâmica do Passo a Passo (narração do lance perfeito)
+                      Positioned(
+                        bottom: 78,
+                        left: 20,
+                        right: 20,
+                        child: Center(
+                          child: ConstrainedBox(
+                            constraints: const BoxConstraints(maxWidth: 680),
+                            child: ValueListenableBuilder<String>(
+                              valueListenable: game.training.demoCaptionNotifier,
+                              builder: (context, caption, _) {
+                                if (caption.isEmpty) return const SizedBox.shrink();
+                                return Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xF5070D24),
+                                    borderRadius: BorderRadius.circular(10),
+                                    border: Border.all(color: Colors.amber, width: 2),
+                                    boxShadow: const [
+                                      BoxShadow(color: Colors.black87, blurRadius: 8, offset: Offset(0, 3)),
+                                    ],
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      const Icon(Icons.info_outline, color: Colors.amber, size: 20),
+                                      const SizedBox(width: 10),
+                                      Flexible(
+                                        child: Text(
+                                          caption,
+                                          style: const TextStyle(
+                                            color: Colors.white,
+                                            fontWeight: FontWeight.w700,
+                                            fontSize: 13.5,
+                                            height: 1.25,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                );
+                              },
+                            ),
+                          ),
+                        ),
+                      ),
+                      // Barra de Ação Inferior: REPETIR DEMO / MINHA VEZ! PRATICAR
+                      Positioned(
+                        bottom: 16,
+                        left: 0,
+                        right: 0,
+                        child: Center(
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              ElevatedButton.icon(
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: const Color(0xFF1565C0),
+                                  foregroundColor: Colors.white,
+                                  padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(10),
+                                    side: const BorderSide(color: Colors.white70, width: 1.5),
+                                  ),
+                                  elevation: 6,
+                                ),
+                                icon: const Icon(Icons.replay, size: 20),
+                                label: const Text(
+                                  '🔁 REPETIR DEMO',
+                                  style: TextStyle(fontWeight: FontWeight.w900, fontSize: 13),
+                                ),
+                                onPressed: () {
+                                  game.repeatDemo();
+                                  setState(() {});
+                                },
+                              ),
+                              const SizedBox(width: 14),
+                              ElevatedButton.icon(
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: const Color(0xFF2E7D32),
+                                  foregroundColor: Colors.white,
+                                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(10),
+                                    side: const BorderSide(color: Color(0xFF69F0AE), width: 2),
+                                  ),
+                                  elevation: 8,
+                                ),
+                                icon: const Icon(Icons.play_arrow, size: 22),
+                                label: const Text(
+                                  '▶️ MINHA VEZ! PRATICAR',
+                                  style: TextStyle(fontWeight: FontWeight.w900, fontSize: 14),
+                                ),
+                                onPressed: () {
+                                  game.stopDemo();
+                                  setState(() {});
+                                },
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              },
             ),
 
           // Caixa de Diálogo do Treinador Silva (Destacada, 100% legível e elegante)
