@@ -459,17 +459,36 @@ void main() {
       }
     });
 
-    test('VolleyGame startTraining sets up mode 3, coach opponent and training targets', () {
+    test('Net Blocking: jumping near net blocks opponent spike downward', () {
       final game = VolleyGame();
-      game.startTraining(drill: 0);
-      expect(game.mode, equals(3));
-      expect(game.teams[1].name, equals('TREINADOR'));
-      expect(game.training.currentDrill, equals(TrainingDrill.serve));
+      game.startMatch(1); // Amistoso
 
-      // Toggle de faixas musicais pelo jogo
-      final initialTrack = ArcadeAudio.currentTrack;
-      game.toggleNextMusicTrack();
-      expect(ArcadeAudio.currentTrack, equals((initialTrack + 1) % 4));
+      // Posiciona jogador 1 (rede) saltando em frente à rede (x = 430, z = 45)
+      final netPlayer = game.players[1];
+      netPlayer.x = 430;
+      netPlayer.y = 215;
+      netPlayer.z = 45;
+      netPlayer.vz = 50;
+
+      // Bola atacada pelo oponente vindo em direção à rede (bvx < 0, bz na altura do bloqueio)
+      game.phase = Phase.rally;
+      game.bx = 445;
+      game.by = 215;
+      game.bz = 145;
+      game.bvx = -600;
+      game.bvy = 0;
+      game.bvz = 10;
+      game.ballSide = 0;
+      game.blockCd = 0;
+
+      // Executa a checagem de bloqueio
+      game.update(1 / 60);
+
+      // A bola deve ser bloqueada: inverte bvx para o campo adversário (> 0) e crava para baixo (bvz < 0)
+      expect(game.bvx, greaterThan(400));
+      expect(game.bvz, lessThan(0));
+      expect(game.lastTeam, equals(0));
+      expect(game.blockCd, greaterThan(0));
     });
 
     test('TrainingController reception drill guides player via ball shadow without blue ring', () {

@@ -36,49 +36,33 @@ void main() {
     await tester.pump();
   });
 
-  testWidgets('Training Mode Coach Dialogue Box and Avatar test', (tester) async {
+  testWidgets('Menu has only Torneio, Amistoso and 2P modes, without training or coach', (tester) async {
     final game = VolleyGame();
     await tester.pumpWidget(VolleyApp(game: game));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 200));
 
-    // Inicia o Modo Treino com o Treinador
-    game.startTraining(drill: 0);
+    // Verifica que o modo treino e treinador foram completamente removidos
+    expect(find.text('MODO TREINO COM TREINADOR 📋'), findsNothing);
+    expect(find.text('PROF. SILVA (TREINADOR)'), findsNothing);
+
+    // Modos principais disponíveis
+    expect(find.text('JOGAR TORNEIO (4 FASES)'), findsOneWidget);
+    expect(find.text('JOGAR AMISTOSO'), findsOneWidget);
+    expect(find.text('2 JOGADORES (VERSUS LOCAL)'), findsOneWidget);
+
+    // Inicia Amistoso
+    game.startMatch(1);
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 200));
 
-    // Verifica se a Caixa de Diálogo do Treinador apareceu com título e texto legível
-    expect(find.text('PROF. SILVA (TREINADOR)'), findsOneWidget);
-    expect(find.text('ORIENTAÇÃO TÁTICA'), findsOneWidget);
-    expect(find.text(TrainingController.drillTip(0)), findsOneWidget);
-
-    // Fecha a dica clicando no botão X
-    await tester.tap(find.byTooltip('Fechar dica'));
-    await tester.pump();
-    expect(find.text('PROF. SILVA (TREINADOR)'), findsNothing);
-
-    // Clica no botão de lâmpada para reabrir a dica
-    await tester.tap(find.byTooltip('Repetir dica do Treinador'));
-    await tester.pump();
-    expect(find.text('PROF. SILVA (TREINADOR)'), findsOneWidget);
-    expect(find.text(TrainingController.drillTip(0)), findsOneWidget);
-
-    // Avança para o próximo exercício
-    await tester.tap(find.byTooltip('Próximo exercício'));
-    await tester.pump();
-    expect(find.text(TrainingController.drillTip(1)), findsOneWidget);
-
-    // Verifica que o botão de vídeo foi removido do treino
-    expect(find.byTooltip('Ver demonstração em vídeo (D)'), findsNothing);
-
-    // Pausa o jogo em Modo Treino e verifica o card com métricas de treino (Pontos, Acertos, Rank)
+    // Pausa e verifica que exibe o placar oficial de partida sem card de treino
     game.togglePause();
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 200));
 
-    expect(find.text('PONTOS'), findsOneWidget);
-    expect(find.text('ACERTOS'), findsOneWidget);
-    expect(find.text('APROVEITAMENTO'), findsOneWidget);
-    expect(find.text('VER DEMONSTRAÇÃO DO LANCE 🎬'), findsNothing);
+    expect(find.text('CONTINUAR'), findsOneWidget);
+    expect(find.text('PONTOS'), findsNothing);
+    expect(find.text('ACERTOS'), findsNothing);
   });
 }
