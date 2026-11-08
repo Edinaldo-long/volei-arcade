@@ -86,16 +86,56 @@ void main() {
       expect(eval.hitstopDuration, greaterThan(0.05));
     });
 
-    test('Early jump or high ball produces early rating', () {
+    test('Spike with extended arm at high contact point yields perfect rating, not early', () {
       final eval = TimingEvaluator.evaluateSpike(
-        ballZ: 220,
-        playerZ: 70,
-        playerVz: 250, // ascending fast
+        ballZ: 175,
+        playerZ: 70, // relativeZ = 105 (high spike at extended arm)
+        playerVz: 60, // near apex with slight upward drive
+        dist2D: 55, // well positioned
+      );
+
+      expect(eval.rating, TimingRating.perfect);
+      expect(eval.speedMultiplier, greaterThan(1.3));
+      expect(eval.label, 'PERFEITO!');
+    });
+
+    test('Solid spike within reaching distance yields good rating with full power', () {
+      final eval = TimingEvaluator.evaluateSpike(
+        ballZ: 160,
+        playerZ: 65, // relativeZ = 95
+        playerVz: -80, // slight descent
+        dist2D: 95, // within reach (<= 125)
+      );
+
+      expect(eval.rating, TimingRating.good);
+      expect(eval.speedMultiplier, greaterThan(1.1));
+      expect(eval.label, 'BOM');
+    });
+
+    test('Premature swing when ball is excessively high produces early rating', () {
+      final eval = TimingEvaluator.evaluateSpike(
+        ballZ: 230,
+        playerZ: 70, // relativeZ = 160 (> 145)
+        playerVz: 360, // ascending fast (> 340)
         dist2D: 40,
       );
 
       expect(eval.rating, TimingRating.early);
       expect(eval.speedMultiplier, lessThan(1.0));
+      expect(eval.label, 'CEDO');
+    });
+
+    test('Late swing when ball has dropped too low produces late rating', () {
+      final eval = TimingEvaluator.evaluateSpike(
+        ballZ: 85,
+        playerZ: 60, // relativeZ = 25 (< 40)
+        playerVz: -100,
+        dist2D: 40,
+      );
+
+      expect(eval.rating, TimingRating.late);
+      expect(eval.speedMultiplier, lessThan(1.0));
+      expect(eval.label, 'TARDE');
     });
   });
 

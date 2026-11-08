@@ -43,17 +43,16 @@ class TimingEvaluator {
     required double playerVz,
     required double dist2D,
   }) {
-    // Altura relativa ideal da bola em relação ao jogador para cortada potente
-    // O jogador costuma golpear com o braço estendido acima da cabeça (~70 a 85 acima do pé)
+    // Altura relativa da bola em relação aos pés do jogador.
+    // Em voleibol, o contato da cortada ocorre no alto do alcance do braço (~60 a 125 acima do pé).
     final relativeZ = ballZ - playerZ;
-    const optimalRelZ = 76.0;
-    final diffZ = (relativeZ - optimalRelZ).abs();
 
-    // No topo do salto, playerVz está próximo de zero (-80 a 80)
-    final inPeakJump = playerVz.abs() < 110.0;
-    final centered = dist2D < 42.0;
+    // 1. AVALIAÇÃO DE CORTADA PERFEITA (Ápice do salto, bola bem posicionada no alto e centralizada)
+    final isHeightPerfect = relativeZ >= 60.0 && relativeZ <= 125.0;
+    final isVzPerfect = playerVz >= -160.0 && playerVz <= 220.0;
+    final isCentered = dist2D <= 80.0;
 
-    if (diffZ <= 18.0 && inPeakJump && centered) {
+    if (isHeightPerfect && isVzPerfect && isCentered) {
       return const HitEvaluation(
         rating: TimingRating.perfect,
         speedMultiplier: 1.35,
@@ -66,12 +65,17 @@ class TimingEvaluator {
       );
     }
 
-    if (diffZ <= 36.0 && dist2D < 68.0) {
+    // 2. AVALIAÇÃO DE CORTADA BOA (Qualquer contato limpo dentro da área de alcance do jogador)
+    final isHeightGood = relativeZ >= 40.0 && relativeZ <= 145.0;
+    final isVzGood = playerVz >= -280.0 && playerVz <= 340.0;
+    final isInReach = dist2D <= 125.0;
+
+    if (isHeightGood && isVzGood && isInReach) {
       return const HitEvaluation(
         rating: TimingRating.good,
-        speedMultiplier: 1.05,
-        topspin: 16.0,
-        accuracyFactor: 0.85,
+        speedMultiplier: 1.18,
+        topspin: 18.0,
+        accuracyFactor: 0.88,
         label: 'BOM',
         color: Color(0xFF40C4FF), // Ciano
         hitstopDuration: 0.040,
@@ -79,28 +83,32 @@ class TimingEvaluator {
       );
     }
 
-    if (playerVz > 110.0 || relativeZ > optimalRelZ) {
+    // 3. AVALIAÇÃO DE GOLPE PREMATURO (CEDO)
+    // Apenas se a bola ainda estiver excessivamente alta ou salto muito precoce
+    if (relativeZ > 145.0 || playerVz > 340.0) {
       return const HitEvaluation(
         rating: TimingRating.early,
-        speedMultiplier: 0.78,
-        topspin: 6.0,
-        accuracyFactor: 0.50,
+        speedMultiplier: 0.95,
+        topspin: 8.0,
+        accuracyFactor: 0.60,
         label: 'CEDO',
         color: Color(0xFFFF9100), // Laranja
-        hitstopDuration: 0.0,
-        shakeTrauma: 0.18,
+        hitstopDuration: 0.02,
+        shakeTrauma: 0.20,
       );
     }
 
+    // 4. AVALIAÇÃO DE GOLPE TARDIO (TARDE)
+    // Bola já caiu abaixo do peito/cintura ou jogador já está em queda livre
     return const HitEvaluation(
       rating: TimingRating.late,
-      speedMultiplier: 0.72,
-      topspin: 4.0,
-      accuracyFactor: 0.45,
+      speedMultiplier: 0.90,
+      topspin: 6.0,
+      accuracyFactor: 0.55,
       label: 'TARDE',
       color: Color(0xFFFF5252), // Vermelho claro
-      hitstopDuration: 0.0,
-      shakeTrauma: 0.18,
+      hitstopDuration: 0.02,
+      shakeTrauma: 0.20,
     );
   }
 

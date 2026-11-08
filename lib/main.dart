@@ -817,6 +817,9 @@ class VolleyGame extends FlameGame with KeyboardEvents {
           final dx = bx - hx, dy = (by - p.y) * 0.8, dz = bz - hz;
           final reach = p.onGround ? 120.0 : 135.0;
           if (dx * dx + dy * dy + dz * dz <= reach * reach) {
+            if (p.human && !p.onGround && pads[p.team].hitBuf > 0.05 && p.vz > 220 && bz > hz + 20) {
+              return;
+            }
             _spikeServe(p);
           }
         }
@@ -830,6 +833,9 @@ class VolleyGame extends FlameGame with KeyboardEvents {
     final dx = bx - hx, dy = (by - p.y) * 0.8, dz = bz - hz;
     final reach = p.human ? (p.onGround ? 115.0 : 125.0) : (p.onGround ? 85.0 : 95.0);
     if (dx * dx + dy * dy + dz * dz > reach * reach) return;
+    if (p.human && !p.onGround && pads[p.team].hitBuf > 0.05 && p.vz > 220 && bz > hz + 20) {
+      return;
+    }
     _hit(p);
   }
 
