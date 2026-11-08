@@ -472,29 +472,10 @@ void main() {
       expect(ArcadeAudio.currentTrack, equals((initialTrack + 1) % 4));
     });
 
-    test('TrainingController demo mode start, update and stop behavior', () {
-      final game = VolleyGame();
-      game.startTraining(drill: 0);
-
-      // Inicia o vídeo/demonstração interativa do lance perfeito
-      game.startDemo();
-      expect(game.training.isDemo, isTrue);
-      expect(game.training.isDemoNotifier.value, isTrue);
-      expect(game.training.demoCaptionNotifier.value, contains('LANÇAMENTO'));
-
-      // Avança o tempo da simulação da demonstração
-      game.update(1.0);
-      expect(game.training.demoCaptionNotifier.value.isNotEmpty, isTrue);
-
-      // Repete o vídeo demonstrativo
-      game.repeatDemo();
-      expect(game.training.isDemo, isTrue);
-      expect(game.training.demoTimer, equals(0.0));
-
-      // Finaliza a demonstração e devolve controle ao jogador
-      game.stopDemo();
-      expect(game.training.isDemo, isFalse);
-      expect(game.training.isDemoNotifier.value, isFalse);
+    test('TrainingController reception drill guides player via ball shadow without blue ring', () {
+      final ctrl = TrainingController();
+      expect(TrainingController.drillDescriptions[1], contains('sombra da bola'));
+      expect(TrainingController.drillDescriptions[1].contains('ANEL AZUL'), isFalse);
     });
 
     test('TrainingController accuracy and rank calculations', () {

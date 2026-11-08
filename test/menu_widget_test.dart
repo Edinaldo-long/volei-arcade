@@ -68,21 +68,8 @@ void main() {
     await tester.pump();
     expect(find.text(TrainingController.drillTip(1)), findsOneWidget);
 
-    // Clica no botão de demonstração em vídeo
-    await tester.tap(find.byTooltip('Ver demonstração em vídeo (D)'));
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 100));
-
-    // Verifica que o overlay de demonstração e botões de ação estão visíveis
-    expect(find.text('🔁 REPETIR DEMO'), findsOneWidget);
-    expect(find.text('▶️ MINHA VEZ! PRATICAR'), findsOneWidget);
-    expect(game.training.isDemo, isTrue);
-
-    // Clica em 'MINHA VEZ! PRATICAR' para voltar ao treino
-    await tester.tap(find.text('▶️ MINHA VEZ! PRATICAR'));
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 100));
-    expect(game.training.isDemo, isFalse);
+    // Verifica que o botão de vídeo foi removido do treino
+    expect(find.byTooltip('Ver demonstração em vídeo (D)'), findsNothing);
 
     // Pausa o jogo em Modo Treino e verifica o card com métricas de treino (Pontos, Acertos, Rank)
     game.togglePause();
@@ -92,6 +79,6 @@ void main() {
     expect(find.text('PONTOS'), findsOneWidget);
     expect(find.text('ACERTOS'), findsOneWidget);
     expect(find.text('APROVEITAMENTO'), findsOneWidget);
-    expect(find.text('VER DEMONSTRAÇÃO DO LANCE 🎬'), findsOneWidget);
+    expect(find.text('VER DEMONSTRAÇÃO DO LANCE 🎬'), findsNothing);
   });
 }

@@ -59,7 +59,7 @@ class TrainingController {
 
   static const List<String> drillDescriptions = [
     'Lance a bola no ar (ESPAÇO/A), corra, salte e corte mirando nos alvos da quadra adversária!',
-    'Posicione-se no centro do ANEL AZUL no chão! Ele marca onde a bola vai cair. Quando você entra, ele fica DOURADO!',
+    'Acompanhe a sombra da bola no chão! Posicione seu jogador exatamente embaixo da sombra para fazer a recepção perfeita!',
     'Receba a bola e faça um levantamento suave em parábola alta rente à rede para armar o ataque!',
     'Espere o levantamento, salte no momento exato e aperte Bater no ponto mais alto para uma cortada indefensável!',
     'Acompanhe o ataque adversário na rede e salte junto para formar o paredão de bloqueio!',
