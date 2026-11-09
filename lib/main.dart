@@ -25,6 +25,7 @@ import 'rendering/ball_renderer.dart';
 import 'rendering/character_renderer.dart';
 import 'rendering/court_renderer.dart';
 import 'rendering/flag_renderer.dart';
+import 'rendering/tournament_celebration.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -486,6 +487,10 @@ class VolleyGame extends FlameGame with KeyboardEvents {
     if (winner == 0) {
       crowd = 2.5;
       ArcadeAudio.playPointCheer(perfect: true);
+      if (mode == 0) {
+        ArcadeAudio.playCrowdCheer(big: true);
+        ArcadeAudio.playApplause();
+      }
     }
   }
 
@@ -2545,6 +2550,30 @@ class _Result extends StatelessWidget {
     final tournament = game.mode == 0;
     final champion = tournament && w == 0 && game.round >= 3;
     final more = tournament && w == 0 && game.round < 3;
+
+    // Quando o time vence no Torneio, exibe a animação com a bandeira e os jogadores comemorando!
+    if (tournament && w == 0) {
+      final winTeam = game.teams[w];
+      final oppTeam = game.teams[1 - w];
+      return Center(
+        child: SingleChildScrollView(
+          child: TournamentCelebrationWidget(
+            championCountry: winTeam.name,
+            shirtColor: winTeam.color,
+            trimColor: winTeam.trim,
+            rivalCountry: oppTeam.name,
+            championScore: game.score[w],
+            rivalScore: game.score[1 - w],
+            isGrandChampion: champion,
+            hasNextRound: more,
+            onNextRound: game.nextRound,
+            onPlayAgain: game.rematch,
+            onMenu: game.toMenu,
+            isBeach: game.isBeach,
+          ),
+        ),
+      );
+    }
 
     String title;
     if (game.mode == 2) {
