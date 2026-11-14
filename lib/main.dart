@@ -133,7 +133,8 @@ class Pad {
   // Toque na tela
   bool tJump = false;
   double ax = 0, ay = 0; // joystick analógico / virtual (-1..1)
-  double hitBuf = 0; // "buffer" do botão de bater
+  double hitBuf = 0; // "buffer" do botão de bater / cortar
+  double setBuf = 0; // "buffer" do botão de levantar / armar
 
   bool get left => kLeft || gLeft;
   bool get right => kRight || gRight;
@@ -421,6 +422,8 @@ class VolleyGame extends FlameGame with KeyboardEvents {
     overlays.remove('controls');
     overlays.remove('pause');
     _safeAddOverlay('controls');
+    // Alterna automaticamente para uma música diferente a cada jogo
+    ArcadeAudio.nextTrack();
     if (musicEnabled) {
       ArcadeAudio.startBgm();
     }
@@ -754,7 +757,7 @@ class VolleyGame extends FlameGame with KeyboardEvents {
         mx = pad.dx; // analógico (joystick/gamepad) ou teclado
         my = pad.dy;
         jump = pad.jump;
-        wantHit = pad.hitBuf > 0;
+        wantHit = pad.hitBuf > 0 || pad.setBuf > 0;
       } else {
         final dx = p.tx - p.x, dy = p.ty - p.y;
         if (dx.abs() > 6) mx = dx.sign * math.min(1.0, dx.abs() / 20);
@@ -896,13 +899,15 @@ class VolleyGame extends FlameGame with KeyboardEvents {
 
     final dist2D = math.sqrt((bx - p.x) * (bx - p.x) + (by - p.y) * (by - p.y));
 
-    // No toque 1 (recepção), por padrão passa para o companheiro armar o levantamento e possibilitar a cortada,
-    // a menos que o jogador empurre o analógico intencionalmente para a frente (aimX > 0.65) para devolver de primeira.
+    final isSetAction = pads[t].setBuf > 0;
+    final isSpikeAction = pads[t].hitBuf > 0;
+
+    // Se apertar LEVANTAR ou se for o toque 1 (recepção), passa para o parceiro armar o ataque na rede
     final wantPassToMate = p.human
-        ? (idx == 0 && aimX <= 0.65)
+        ? (isSetAction || (idx == 0 && !isSpikeAction && aimX <= 0.65))
         : (!air && idx == 0 && _rnd.nextDouble() < (difficulty == 0 ? 0.35 : 0.65));
 
-    if (air && nearNet && bz > kNetH - 25) {
+    if (air && nearNet && bz > kNetH - 25 && !isSetAction) {
       // CORTADA POTENTE (Spike) - Ataque aéreo direto para a quadra adversária!
       final eval = TimingEvaluator.evaluateSpike(
         ballZ: bz,
@@ -963,24 +968,27 @@ class VolleyGame extends FlameGame with KeyboardEvents {
       ballSquashFactor = eval.isPerfect ? 1.45 : 1.30;
       ballSquashTime = 0.12;
     } else if (wantPassToMate) {
-      // PASSE PARA COMPANHEIRO DE TIME
-      final eval = TimingEvaluator.evaluateGroundTouch(dist2D: dist2D, touchIndex: 0);
+      // PASSE / LEVANTAMENTO PARA COMPANHEIRO DE TIME
+      final eval = TimingEvaluator.evaluateGroundTouch(dist2D: dist2D, touchIndex: idx);
       BallPhysicsEngine.launchTo(
         ball,
-        tx: kMid - dirOpp * (140 - 20 * aimX),
+        tx: kMid - dirOpp * (120 - 20 * aimX),
         ty: gyP,
         tz: 75,
-        apexZ: 240,
+        apexZ: isSetAction ? 280 : 240,
         topspin: -3.0,
       );
       outgoing = false;
       ArcadeAudio.playTouch();
       cameraShake.addTrauma(eval.shakeTrauma);
       timingPopups.add(
-        text: 'PASSE',
+        text: isSetAction ? 'LEVANTAMENTO' : 'PASSE',
         position: Offset(_sx(p.x, p.y), _sy(p.y, p.z) - 44),
-        color: const Color(0xFF40C4FF),
+        color: isSetAction ? const Color(0xFF00E676) : const Color(0xFF40C4FF),
       );
+      if (isSetAction) {
+        _msg('LEVANTAMENTO PERFEITO!', 0.8);
+      }
       ballSquashFactor = 1.15;
       ballSquashTime = 0.08;
     } else {
@@ -1014,6 +1022,7 @@ class VolleyGame extends FlameGame with KeyboardEvents {
     p.hitCd = 0.3;
     p.swing = 0.25;
     pads[t].hitBuf = 0;
+    pads[t].setBuf = 0;
     _sparkBall(6, Colors.white, 120);
     _rerollAi();
   }
@@ -1042,11 +1051,15 @@ class VolleyGame extends FlameGame with KeyboardEvents {
     final dirOpp = t == 0 ? 1.0 : -1.0;
     final aimX = _aimX(p);
     final aimY = _aimY(p);
-    final air = !p.onGround;
+    final isPowerServe = pads[t].hitBuf > 0 || !p.onGround;
     final dist2D = math.sqrt((bx - p.x) * (bx - p.x) + (by - p.y) * (by - p.y));
 
-    if (air) {
-      // SAQUE VIAGEM (Jump Spike Serve)
+    if (isPowerServe) {
+      // No saque viagem com o botão de Cortada/Força, se estiver no chão projeta salto aéreo automático
+      if (p.onGround) {
+        p.vz = kJump * 0.75;
+      }
+      // SAQUE VIAGEM POTENTE (Jump Spike Serve)
       final eval = TimingEvaluator.evaluateSpike(
         ballZ: bz,
         playerZ: p.z,
@@ -1064,8 +1077,8 @@ class VolleyGame extends FlameGame with KeyboardEvents {
         tx: targetX,
         ty: targetY,
         tz: BallPhysicsEngine.kBR,
-        topspin: eval.topspin * 1.35,
-        speedMultiplier: eval.speedMultiplier * 1.15,
+        topspin: eval.topspin * 1.40,
+        speedMultiplier: eval.speedMultiplier * 1.25,
       );
 
       if (eval.hitstopDuration > 0) {
@@ -1088,7 +1101,7 @@ class VolleyGame extends FlameGame with KeyboardEvents {
         ArcadeAudio.playCrowdCheer(big: true);
         ArcadeAudio.playApplause();
       }
-      _msg(eval.isPerfect ? 'SAQUE VIAGEM PERFEITO!!' : 'SAQUE VIAGEM!', 1.3);
+      _msg(eval.isPerfect ? 'SAQUE VIAGEM PERFEITO!!' : 'SAQUE VIAGEM POTENTE!', 1.3);
       final sparkCount = eval.isPerfect ? 24 : 14;
       final sparkColor =
           eval.isPerfect ? const Color(0xFFFFD600) : const Color(0xFFFF9100);
@@ -1096,7 +1109,7 @@ class VolleyGame extends FlameGame with KeyboardEvents {
       ballSquashFactor = eval.isPerfect ? 1.45 : 1.30;
       ballSquashTime = 0.12;
     } else {
-      // SAQUE FLUTUANTE (No chão)
+      // SAQUE FLUTUANTE (No chão com o botão de Levantar/Passe)
       var tx = kMid + dirOpp * (120 + 300 * (aimX + 1) / 2);
       final ty =
           (kWd * 0.5 + aimY * kWd * 0.40).clamp(25.0, kWd - 25).toDouble();
@@ -1129,6 +1142,7 @@ class VolleyGame extends FlameGame with KeyboardEvents {
     ballSide = bx < kMid ? 0 : 1;
     p.swing = 0.3;
     pads[p.team].hitBuf = 0;
+    pads[p.team].setBuf = 0;
     ArcadeAudio.playWhistle();
     _rerollAi();
   }
@@ -1401,6 +1415,7 @@ class VolleyGame extends FlameGame with KeyboardEvents {
     if (paused || phase == Phase.menu || phase == Phase.matchOver) return;
     for (final pad in pads) {
       pad.hitBuf = math.max(0, pad.hitBuf - dt);
+      pad.setBuf = math.max(0, pad.setBuf - dt);
     }
 
     // Micro-pausa / Hitstop nos impactos fortes (cortadas e bloqueios)
@@ -2099,17 +2114,14 @@ class VolleyGame extends FlameGame with KeyboardEvents {
 
     if (phase != Phase.menu) {
       final arenaTag = isBeach ? 'PRAIA' : 'GINÁSIO';
-      final trackTag = musicEnabled ? 'TRILHA ${ArcadeAudio.currentTrack + 1}' : 'MUDO';
       if (mode == 0) {
         final rName = const ['QUARTAS', 'SEMIFINAL', 'FINAL', 'GRANDE FINAL'][math.min(round, 3)];
         _text(canvas, 'TORNEIO: $rName', const Offset(12, 10), fs: 11, color: Colors.amber);
         _text(canvas, 'ARENA: $arenaTag', const Offset(12, 24), fs: 11, color: Colors.white);
-        _text(canvas, '[M] Som  [N] $trackTag', const Offset(12, 38), fs: 9, color: Colors.white70);
       } else {
         final mTitle = mode == 2 ? 'VERSUS (2P)' : 'AMISTOSO';
         _text(canvas, mTitle, const Offset(12, 10), fs: 11, color: Colors.amber);
         _text(canvas, 'ARENA: $arenaTag', const Offset(12, 24), fs: 11, color: Colors.white);
-        _text(canvas, '[M] Som  [N] $trackTag', const Offset(12, 38), fs: 9, color: Colors.white70);
       }
     }
 
@@ -2119,13 +2131,13 @@ class VolleyGame extends FlameGame with KeyboardEvents {
           fs: 28, color: const Color(0xFFFFD600), align: 1);
     } else if (phase == Phase.serving && !paused && _isHumanTeam(serving)) {
       if (!ballTossed) {
-        final key = mode == 2
-            ? (serving == 0 ? 'ESPAÇO' : 'ENTER')
-            : 'botão da BOLA / ESPAÇO';
-        _text(canvas, 'LANÇAR BOLA: $key', const Offset(cx, 182),
+        final prompt = mode == 2
+            ? (serving == 0 ? 'LANÇAR: ESPAÇO' : 'LANÇAR: ENTER')
+            : 'TOQUE NO BOTÃO DA BOLA PARA SACAR';
+        _text(canvas, prompt, const Offset(cx, 182),
             fs: 18, color: const Color(0xFFFFD54F), align: 1);
       } else {
-        _text(canvas, 'SAQUE VIAGEM: Corra, SALTE e CORTE no ar!',
+        _text(canvas, 'SAQUE VIAGEM: SALTE E CORTE NO AR!',
             const Offset(cx, 182),
             fs: 18, color: const Color(0xFFFF9100), align: 1);
       }
@@ -2690,16 +2702,6 @@ class _PauseMenuState extends State<_PauseMenu> {
           FilledButton.tonalIcon(
             onPressed: () {
               setState(() {
-                g.toggleNextMusicTrack();
-              });
-            },
-            icon: const Icon(Icons.queue_music),
-            label: Text('FAIXA: ${ArcadeAudio.currentTrackName}'),
-          ),
-          const SizedBox(height: 10),
-          FilledButton.tonalIcon(
-            onPressed: () {
-              setState(() {
                 g.toggleMusic();
               });
             },
@@ -2749,11 +2751,13 @@ class _PauseMenuState extends State<_PauseMenu> {
 // ============================================================
 class _PadButton extends StatefulWidget {
   final IconData icon;
+  final String? label;
   final double size;
   final Color color;
   final ValueChanged<bool> onChange;
   const _PadButton({
     required this.icon,
+    this.label,
     required this.onChange,
     this.size = 62,
     this.color = const Color(0x99000000),
@@ -2781,18 +2785,38 @@ class _PadButtonState extends State<_PadButton> {
           duration: const Duration(milliseconds: 60),
           width: widget.size,
           height: widget.size,
-          margin: const EdgeInsets.all(3),
+          margin: const EdgeInsets.symmetric(horizontal: 4),
           decoration: BoxDecoration(
-            color: down ? const Color(0xCCFFFFFF) : widget.color,
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: Colors.white, width: 3),
+            color: down ? const Color(0xEEFFFFFF) : widget.color,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: Colors.white, width: 2.5),
             boxShadow: down
                 ? null
-                : const [BoxShadow(color: Colors.black, offset: Offset(3, 3))],
+                : const [BoxShadow(color: Colors.black54, offset: Offset(2, 2), blurRadius: 4)],
           ),
-          child: Icon(widget.icon,
-              color: down ? Colors.black : Colors.white,
-              size: widget.size * 0.5),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                widget.icon,
+                color: down ? Colors.black : Colors.white,
+                size: widget.label != null ? widget.size * 0.38 : widget.size * 0.50,
+              ),
+              if (widget.label != null)
+                Padding(
+                  padding: const EdgeInsets.only(top: 2),
+                  child: Text(
+                    widget.label!,
+                    style: TextStyle(
+                      color: down ? Colors.black : Colors.white,
+                      fontWeight: FontWeight.w900,
+                      fontSize: widget.size * 0.16,
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                ),
+            ],
+          ),
         ),
       );
 }
@@ -2912,59 +2936,13 @@ class _ControlsState extends State<_Controls> {
     return SafeArea(
       child: Stack(
         children: [
-          // Botões superiores de Música, Faixa e Pausa
+          // Botões superiores de Som e Pausa (Compacto para não cobrir o placar)
           Positioned(
             top: 10,
             right: 14,
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                // Botão para Trocar de Trilha Musical
-                Material(
-                  color: Colors.transparent,
-                  child: InkWell(
-                    borderRadius: BorderRadius.circular(10),
-                    onTap: () {
-                      game.toggleNextMusicTrack();
-                      setState(() {});
-                    },
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 10, vertical: 8),
-                      margin: const EdgeInsets.only(right: 8),
-                      decoration: BoxDecoration(
-                        color: const Color(0xDD0A1050),
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(color: Colors.amberAccent, width: 2),
-                        boxShadow: const [
-                          BoxShadow(
-                              color: Colors.black54, offset: Offset(2, 2)),
-                        ],
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Icon(
-                            Icons.queue_music,
-                            color: Colors.amberAccent,
-                            size: 18,
-                          ),
-                          const SizedBox(width: 4),
-                          Text(
-                            'FAIXA ${ArcadeAudio.currentTrack + 1}',
-                            style: const TextStyle(
-                              color: Colors.amberAccent,
-                              fontWeight: FontWeight.w900,
-                              fontSize: 12,
-                              letterSpacing: 1,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-
                 // Botão Ligar/Desligar Música
                 Material(
                   color: Colors.transparent,
@@ -3071,23 +3049,53 @@ class _ControlsState extends State<_Controls> {
                   children: [
                     // Joystick analógico
                     _Joystick(pad: pad, size: 170),
-                    // Pular e bater
-                    Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
-                      _PadButton(
-                        icon: Icons.keyboard_double_arrow_up,
-                        size: 66,
-                        color: const Color(0xCC1E88E5),
-                        onChange: (v) => pad.jump = v,
-                      ),
-                      _PadButton(
-                        icon: Icons.sports_volleyball,
-                        size: 88,
-                        color: const Color(0xCCFFA000),
-                        onChange: (v) {
-                          if (v) pad.hitBuf = 0.4;
-                        },
-                      ),
-                    ]),
+                    // Ações: Levantar, Pular/Bloquear e Cortar/Saque Forte
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        // Botão LEVANTAR / PASSAR (Verde esmeralda)
+                        _PadButton(
+                          icon: Icons.north,
+                          label: 'LEVANTA',
+                          size: 64,
+                          color: const Color(0xDD00C853),
+                          onChange: (v) {
+                            if (v) {
+                              pad.setBuf = 0.45;
+                              if (game.phase == Phase.serving && !game.ballTossed) {
+                                pad.hitBuf = 0.4;
+                              }
+                            }
+                          },
+                        ),
+                        // Botão PULAR / BLOQUEAR (Azul vibrante)
+                        _PadButton(
+                          icon: Icons.keyboard_double_arrow_up,
+                          label: 'PULA',
+                          size: 64,
+                          color: const Color(0xDD1E88E5),
+                          onChange: (v) => pad.jump = v,
+                        ),
+                        // Botão CORTAR / SAQUE FORTE (Laranja/Ouro)
+                        _PadButton(
+                          icon: Icons.sports_volleyball,
+                          label: 'CORTA',
+                          size: 82,
+                          color: const Color(0xDDFF8F00),
+                          onChange: (v) {
+                            if (v) {
+                              pad.hitBuf = 0.45;
+                              if (game.phase == Phase.serving && game.ballTossed && game.players[0].onGround) {
+                                pad.jump = true;
+                                Future.delayed(const Duration(milliseconds: 90), () {
+                                  pad.jump = false;
+                                });
+                              }
+                            }
+                          },
+                        ),
+                      ],
+                    ),
                   ],
                 ),
               ),

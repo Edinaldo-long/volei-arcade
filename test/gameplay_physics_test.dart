@@ -13,6 +13,7 @@ import 'package:volei/physics/ball_physics.dart';
 import 'package:volei/rendering/flag_renderer.dart';
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
   group('BallPhysicsEngine Tests', () {
     test('Gravity pulls ball down to ground and bounces', () {
       final ball = BallPhysicsState()
