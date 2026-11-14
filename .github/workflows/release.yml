@@ -4,6 +4,7 @@ on:
   push:
     tags:
       - 'v*'
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -29,20 +30,7 @@ jobs:
           channel: 'stable'
           cache: true
 
-      - name: Detect Project Root
-        id: detect-root
-        run: |
-          if [ -f "pubspec.yaml" ]; then
-            echo "project_dir=." >> $GITHUB_OUTPUT
-          elif [ -f "volei/pubspec.yaml" ]; then
-            echo "project_dir=volei" >> $GITHUB_OUTPUT
-          else
-            echo "Error: pubspec.yaml not found" >&2
-            exit 1
-          fi
-
       - name: Setup Keystore & Signing (if configured)
-        working-directory: ${{ steps.detect-root.outputs.project_dir }}
         env:
           KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
@@ -61,11 +49,9 @@ jobs:
           fi
 
       - name: Install Dependencies
-        working-directory: ${{ steps.detect-root.outputs.project_dir }}
         run: flutter pub get
 
       - name: Build Release APK
-        working-directory: ${{ steps.detect-root.outputs.project_dir }}
         run: flutter build apk --release
 
       - name: Publish GitHub Release
@@ -76,7 +62,6 @@ jobs:
           draft: false
           prerelease: false
           generate_release_notes: true
-          files: |
-            ${{ steps.detect-root.outputs.project_dir }}/build/app/outputs/flutter-apk/app-release.apk
+          files: build/app/outputs/flutter-apk/app-release.apk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
