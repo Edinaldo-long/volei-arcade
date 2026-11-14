@@ -902,11 +902,11 @@ class VolleyGame extends FlameGame with KeyboardEvents {
     final dist2D = math.sqrt((bx - p.x) * (bx - p.x) + (by - p.y) * (by - p.y));
 
     final isSetAction = pads[t].setBuf > 0;
-    final isSpikeAction = pads[t].hitBuf > 0;
 
-    // Se apertar LEVANTAR ou se for o toque 1 (recepção), passa para o parceiro armar o ataque na rede
+    // No toque 1 (recepção), por padrão passa para o companheiro armar o levantamento e possibilitar a cortada,
+    // a menos que o jogador empurre o analógico intencionalmente para a frente (aimX > 0.65) para devolver de primeira.
     final wantPassToMate = p.human
-        ? (isSetAction || (idx == 0 && !isSpikeAction && aimX <= 0.65))
+        ? (isSetAction || (idx == 0 && aimX <= 0.65))
         : (!air && idx == 0 && _rnd.nextDouble() < (difficulty == 0 ? 0.35 : 0.65));
 
     if (air && nearNet && bz > kNetH - 25 && !isSetAction) {
@@ -2844,13 +2844,11 @@ class _PauseMenuState extends State<_PauseMenu> {
 // ============================================================
 class _PadButton extends StatefulWidget {
   final IconData icon;
-  final String? label;
   final double size;
   final Color color;
   final ValueChanged<bool> onChange;
   const _PadButton({
     required this.icon,
-    this.label,
     required this.onChange,
     this.size = 62,
     this.color = const Color(0x99000000),
@@ -2887,28 +2885,12 @@ class _PadButtonState extends State<_PadButton> {
                 ? null
                 : const [BoxShadow(color: Colors.black54, offset: Offset(2, 2), blurRadius: 4)],
           ),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(
-                widget.icon,
-                color: down ? Colors.black : Colors.white,
-                size: widget.label != null ? widget.size * 0.38 : widget.size * 0.50,
-              ),
-              if (widget.label != null)
-                Padding(
-                  padding: const EdgeInsets.only(top: 2),
-                  child: Text(
-                    widget.label!,
-                    style: TextStyle(
-                      color: down ? Colors.black : Colors.white,
-                      fontWeight: FontWeight.w900,
-                      fontSize: widget.size * 0.16,
-                      letterSpacing: 0.5,
-                    ),
-                  ),
-                ),
-            ],
+          child: Center(
+            child: Icon(
+              widget.icon,
+              color: down ? Colors.black : Colors.white,
+              size: widget.size * 0.52,
+            ),
           ),
         ),
       );
@@ -3142,49 +3124,22 @@ class _ControlsState extends State<_Controls> {
                   children: [
                     // Joystick analógico
                     _Joystick(pad: pad, size: 170),
-                    // Ações: Levantar, Pular/Bloquear e Cortar/Saque Forte
+                    // Pular e bater (2 botões originais rápidos e ergonômicos)
                     Row(
                       crossAxisAlignment: CrossAxisAlignment.end,
                       children: [
-                        // Botão LEVANTAR / PASSAR (Verde esmeralda)
-                        _PadButton(
-                          icon: Icons.north,
-                          label: 'LEVANTA',
-                          size: 64,
-                          color: const Color(0xDD00C853),
-                          onChange: (v) {
-                            if (v) {
-                              pad.setBuf = 0.45;
-                              if (game.phase == Phase.serving && !game.ballTossed) {
-                                pad.hitBuf = 0.4;
-                              }
-                            }
-                          },
-                        ),
-                        // Botão PULAR / BLOQUEAR (Azul vibrante)
                         _PadButton(
                           icon: Icons.keyboard_double_arrow_up,
-                          label: 'PULA',
-                          size: 64,
-                          color: const Color(0xDD1E88E5),
+                          size: 66,
+                          color: const Color(0xCC1E88E5),
                           onChange: (v) => pad.jump = v,
                         ),
-                        // Botão CORTAR / SAQUE FORTE (Laranja/Ouro)
                         _PadButton(
                           icon: Icons.sports_volleyball,
-                          label: 'CORTA',
-                          size: 82,
-                          color: const Color(0xDDFF8F00),
+                          size: 88,
+                          color: const Color(0xCCFFA000),
                           onChange: (v) {
-                            if (v) {
-                              pad.hitBuf = 0.45;
-                              if (game.phase == Phase.serving && game.ballTossed && game.players[0].onGround) {
-                                pad.jump = true;
-                                Future.delayed(const Duration(milliseconds: 90), () {
-                                  pad.jump = false;
-                                });
-                              }
-                            }
+                            if (v) pad.hitBuf = 0.4;
                           },
                         ),
                       ],
