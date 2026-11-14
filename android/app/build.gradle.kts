@@ -40,10 +40,15 @@ android {
 
     signingConfigs {
         create("release") {
-            val keyAliasProp = keystoreProperties.getProperty("keyAlias")
-            val keyPasswordProp = keystoreProperties.getProperty("keyPassword")
-            val storeFileProp = keystoreProperties.getProperty("storeFile")
-            val storePasswordProp = keystoreProperties.getProperty("storePassword")
+            val envKeyAlias = System.getenv("KEY_ALIAS")
+            val envKeyPassword = System.getenv("KEY_PASSWORD")
+            val envStoreFile = System.getenv("STORE_FILE")
+            val envStorePassword = System.getenv("STORE_PASSWORD")
+
+            val keyAliasProp = if (!envKeyAlias.isNullOrBlank()) envKeyAlias else keystoreProperties.getProperty("keyAlias")
+            val keyPasswordProp = if (!envKeyPassword.isNullOrBlank()) envKeyPassword else keystoreProperties.getProperty("keyPassword")
+            val storeFileProp = if (!envStoreFile.isNullOrBlank()) envStoreFile else keystoreProperties.getProperty("storeFile")
+            val storePasswordProp = if (!envStorePassword.isNullOrBlank()) envStorePassword else keystoreProperties.getProperty("storePassword")
 
             if (!keyAliasProp.isNullOrBlank() && !storeFileProp.isNullOrBlank()) {
                 val candidateFile = if (file(storeFileProp).exists()) {

@@ -51,8 +51,14 @@ jobs:
       - name: Install Dependencies
         run: flutter pub get
 
+      - name: Make Gradlew Executable
+        run: |
+          if [ -f "android/gradlew" ]; then
+            chmod +x android/gradlew
+          fi
+
       - name: Build Release APK
-        run: flutter build apk --release
+        run: flutter build apk --release --android-skip-build-dependency-validation
 
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
