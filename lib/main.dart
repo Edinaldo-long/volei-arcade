@@ -26,6 +26,8 @@ import 'rendering/character_renderer.dart';
 import 'rendering/court_renderer.dart';
 import 'rendering/flag_renderer.dart';
 import 'rendering/tournament_celebration.dart';
+import 'services/auto_update_service.dart';
+import 'services/update_dialog.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -2187,6 +2189,19 @@ class _Menu extends StatefulWidget {
 class _MenuState extends State<_Menu> {
   int diff = 1;
   bool showTournamentSetup = false;
+  UpdateInfo? _updateInfo;
+
+  @override
+  void initState() {
+    super.initState();
+    AutoUpdateService.checkForUpdate().then((info) {
+      if (mounted && info.hasUpdate) {
+        setState(() {
+          _updateInfo = info;
+        });
+      }
+    });
+  }
 
   void _shuffleRivals(VolleyGame g) {
     final available = List<int>.generate(kAvailableTeams.length, (i) => i)
@@ -2225,6 +2240,62 @@ class _MenuState extends State<_Menu> {
           const Text('2 contra 2  •  até 15 pontos',
               style: TextStyle(color: Colors.white70, fontSize: 13)),
           const SizedBox(height: 12),
+
+          if (_updateInfo != null && _updateInfo!.hasUpdate) ...[
+            Container(
+              margin: const EdgeInsets.only(bottom: 12),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [Color(0xFFE65100), Color(0xFFFF9100)],
+                ),
+                borderRadius: BorderRadius.circular(10),
+                boxShadow: const [
+                  BoxShadow(color: Colors.black45, blurRadius: 6, offset: Offset(0, 3)),
+                ],
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.system_update_alt, color: Colors.white, size: 24),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'NOVA VERSÃO DISPONÍVEL!',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 11,
+                          ),
+                        ),
+                        Text(
+                          'v${_updateInfo!.latestVersion} pronta para instalar',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 10,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.white,
+                      foregroundColor: const Color(0xFFE65100),
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      minimumSize: Size.zero,
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
+                    onPressed: () => UpdateDialog.show(context, _updateInfo!),
+                    child: const Text('ATUALIZAR',
+                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11)),
+                  ),
+                ],
+              ),
+            ),
+          ],
 
           // Seletor de país do jogador
           Container(
@@ -2739,6 +2810,28 @@ class _PauseMenuState extends State<_PauseMenu> {
             },
             icon: const Icon(Icons.home),
             label: const Text('SAIR PARA O MENU'),
+          ),
+          const SizedBox(height: 10),
+          TextButton.icon(
+            style: TextButton.styleFrom(foregroundColor: Colors.amberAccent),
+            onPressed: () async {
+              ScaffoldMessenger.maybeOf(context)?.showSnackBar(const SnackBar(
+                content: Text('Verificando atualizações no GitHub...'),
+                duration: Duration(seconds: 2),
+              ));
+              final info = await AutoUpdateService.checkForUpdate();
+              if (!context.mounted) return;
+              if (info.hasUpdate) {
+                UpdateDialog.show(context, info);
+              } else {
+                ScaffoldMessenger.maybeOf(context)?.showSnackBar(SnackBar(
+                  content: Text('O Vôlei já está atualizado (v${info.currentVersion})!'),
+                  duration: const Duration(seconds: 2),
+                ));
+              }
+            },
+            icon: const Icon(Icons.system_update, size: 18),
+            label: const Text('BUSCAR ATUALIZAÇÕES'),
           ),
         ],
       ),

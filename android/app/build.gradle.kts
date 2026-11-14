@@ -50,22 +50,31 @@ android {
             val storeFileProp = if (!envStoreFile.isNullOrBlank()) envStoreFile else keystoreProperties.getProperty("storeFile")
             val storePasswordProp = if (!envStorePassword.isNullOrBlank()) envStorePassword else keystoreProperties.getProperty("storePassword")
 
-            if (!keyAliasProp.isNullOrBlank() && !storeFileProp.isNullOrBlank()) {
-                val candidateFile = if (file(storeFileProp).exists()) {
-                    file(storeFileProp)
-                } else if (rootProject.file(storeFileProp).exists()) {
-                    rootProject.file(storeFileProp)
-                } else if (file("app/$storeFileProp").exists()) {
-                    file("app/$storeFileProp")
-                } else {
-                    null
-                }
+            val secretKeystoreCandidate = listOfNotNull(
+                if (!storeFileProp.isNullOrBlank()) file(storeFileProp) else null,
+                if (!storeFileProp.isNullOrBlank()) rootProject.file(storeFileProp) else null,
+                if (!storeFileProp.isNullOrBlank()) file("app/$storeFileProp") else null,
+                if (!storeFileProp.isNullOrBlank()) rootProject.file("app/$storeFileProp") else null,
+                file("upload-keystore.jks"),
+                rootProject.file("app/upload-keystore.jks")
+            ).firstOrNull { it.exists() }
 
-                if (candidateFile != null) {
-                    keyAlias = keyAliasProp
-                    keyPassword = keyPasswordProp
-                    storeFile = candidateFile
-                    storePassword = storePasswordProp
+            if (!keyAliasProp.isNullOrBlank() && secretKeystoreCandidate != null) {
+                keyAlias = keyAliasProp
+                keyPassword = keyPasswordProp
+                storeFile = secretKeystoreCandidate
+                storePassword = storePasswordProp
+            } else {
+                val fallbackKeystore = listOfNotNull(
+                    file("release.jks"),
+                    rootProject.file("app/release.jks")
+                ).firstOrNull { it.exists() }
+
+                if (fallbackKeystore != null) {
+                    keyAlias = "volei"
+                    keyPassword = "voleiarcade123"
+                    storeFile = fallbackKeystore
+                    storePassword = "voleiarcade123"
                 }
             }
         }

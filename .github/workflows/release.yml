@@ -45,7 +45,7 @@ jobs:
               "$STORE_PASSWORD" "$KEY_PASSWORD" "$KEY_ALIAS" > android/key.properties
             echo "Keystore and android/key.properties created successfully."
           else
-            echo "No signing secrets provided. Falling back to default release signing."
+            echo "No signing secrets provided. Using repository fixed release keystore (android/app/release.jks)."
           fi
 
       - name: Install Dependencies
@@ -58,6 +58,11 @@ jobs:
           fi
 
       - name: Build Release APK
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+          STORE_PASSWORD: ${{ secrets.STORE_PASSWORD }}
         run: flutter build apk --release --android-skip-build-dependency-validation
 
       - name: Publish GitHub Release
