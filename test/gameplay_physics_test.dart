@@ -532,7 +532,6 @@ void main() {
     });
 
     test('TrainingController reception drill guides player via ball shadow without blue ring', () {
-      final ctrl = TrainingController();
       expect(TrainingController.drillDescriptions[1], contains('sombra da bola'));
       expect(TrainingController.drillDescriptions[1].contains('ANEL AZUL'), isFalse);
     });

@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:volei/gameplay/training_controller.dart';
 import 'package:volei/main.dart';
 import 'package:volei/rendering/tournament_celebration.dart';
 
@@ -69,7 +68,6 @@ void main() {
   });
 
   testWidgets('Tournament victory displays animated celebration with flag and winning players', (tester) async {
-    bool nextRoundCalled = false;
     bool playAgainCalled = false;
     bool menuCalled = false;
 
@@ -85,7 +83,7 @@ void main() {
             rivalScore: 12,
             isGrandChampion: true,
             hasNextRound: false,
-            onNextRound: () => nextRoundCalled = true,
+            onNextRound: () {},
             onPlayAgain: () => playAgainCalled = true,
             onMenu: () => menuCalled = true,
           ),

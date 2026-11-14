@@ -58,6 +58,7 @@ class _VolleyAppState extends State<VolleyApp> {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
+      title: 'Vôlei',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         useMaterial3: true,
@@ -340,10 +341,6 @@ class VolleyGame extends FlameGame with KeyboardEvents {
   void toggleNextMusicTrack() {
     ArcadeAudio.nextTrack();
     _msg('MÚSICA: ${ArcadeAudio.currentTrackName}', 1.6);
-  }
-
-  void _resetPositions() {
-    _nextServe();
   }
 
   void togglePause() {
@@ -638,7 +635,6 @@ class VolleyGame extends FlameGame with KeyboardEvents {
     for (final team in const [0, 1]) {
       final mates = players.where((p) => p.team == team).toList();
       final dirN = team == 0 ? 1.0 : -1.0; // sentido da rede
-      final lvl = _lvl(team);
       marker[team] = null;
       for (final p in mates) {
         p.wJump = false;

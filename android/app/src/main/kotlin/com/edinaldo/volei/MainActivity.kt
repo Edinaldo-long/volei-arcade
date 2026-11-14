@@ -1,4 +1,4 @@
-package com.example.volei
+package com.edinaldo.volei
 
 import io.flutter.embedding.android.FlutterActivity
 
