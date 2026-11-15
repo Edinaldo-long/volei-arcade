@@ -2906,129 +2906,223 @@ class _PauseMenuState extends State<_PauseMenu> {
   @override
   Widget build(BuildContext context) {
     final g = widget.game;
-    return _Panel(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Icon(Icons.pause_circle_filled, color: Colors.amber, size: 52),
-          const SizedBox(height: 6),
-          const Text(
-            'JOGO PAUSADO',
-            style: TextStyle(
-              color: Color(0xFFFFD600),
-              fontSize: 26,
-              fontWeight: FontWeight.w900,
-              letterSpacing: 2,
-              shadows: [Shadow(offset: Offset(3, 3), color: Colors.black)],
-            ),
-          ),
-          const SizedBox(height: 6),
-          FittedBox(
-            fit: BoxFit.scaleDown,
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
+    return Center(
+      child: Container(
+        margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        padding: const EdgeInsets.fromLTRB(20, 12, 20, 12),
+        constraints: const BoxConstraints(maxWidth: 560),
+        decoration: BoxDecoration(
+          color: const Color(0xFF0A1050),
+          border: Border.all(color: Colors.white, width: 3),
+          borderRadius: BorderRadius.circular(12),
+          boxShadow: const [
+            BoxShadow(color: Colors.black87, offset: Offset(5, 5)),
+          ],
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Linha Superior Compacta: Título e Placar juntos (auto-dimensionável para qualquer largura de tela)
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                FlagRenderer.flagWidget(g.teams[0].name, width: 26, height: 17),
-                const SizedBox(width: 8),
-                Text(
-                  '${g.teams[0].name} ${g.score[0]}  ×  ${g.score[1]} ${g.teams[1].name}',
-                  style: const TextStyle(
-                      color: Colors.white70, fontSize: 16, fontWeight: FontWeight.bold),
+                Flexible(
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    alignment: Alignment.centerLeft,
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: const [
+                        Icon(Icons.pause_circle_filled, color: Colors.amber, size: 22),
+                        SizedBox(width: 6),
+                        Text(
+                          'JOGO PAUSADO',
+                          style: TextStyle(
+                            color: Color(0xFFFFD600),
+                            fontSize: 17,
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: 1.5,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
                 const SizedBox(width: 8),
-                FlagRenderer.flagWidget(g.teams[1].name, width: 26, height: 17),
+                Flexible(
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    alignment: Alignment.centerRight,
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        FlagRenderer.flagWidget(g.teams[0].name, width: 22, height: 14),
+                        const SizedBox(width: 6),
+                        Text(
+                          '${g.teams[0].name} ${g.score[0]}  ×  ${g.score[1]} ${g.teams[1].name}',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 14,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        FlagRenderer.flagWidget(g.teams[1].name, width: 22, height: 14),
+                      ],
+                    ),
+                  ),
+                ),
               ],
             ),
-          ),
-          const SizedBox(height: 18),
-          FilledButton.icon(
-            onPressed: g.togglePause,
-            icon: const Icon(Icons.play_arrow),
-            label: const Text('CONTINUAR'),
-          ),
-          const SizedBox(height: 10),
-          Row(
-            children: [
-              Expanded(
-                child: FilledButton.tonalIcon(
-                  onPressed: () {
-                    setState(() {
-                      g.toggleSfx();
-                    });
-                  },
-                  icon: Icon(g.sfxEnabled ? Icons.volume_up : Icons.volume_off),
-                  label: Text(g.sfxEnabled ? 'SOM: ON 🔊' : 'SOM: OFF 🔇'),
+            const Divider(color: Colors.white24, height: 14),
+            // Duas colunas lado a lado para aproveitar o modo paisagem sem precisar de scroll
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Coluna Esquerda: Ações de Partida
+                Expanded(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      FilledButton.icon(
+                        style: FilledButton.styleFrom(
+                          backgroundColor: const Color(0xFF2E7D32),
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 9),
+                        ),
+                        onPressed: g.togglePause,
+                        icon: const Icon(Icons.play_arrow, size: 20),
+                        label: const Text('CONTINUAR', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                      ),
+                      const SizedBox(height: 7),
+                      FilledButton.tonalIcon(
+                        style: FilledButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 8),
+                        ),
+                        onPressed: () {
+                          g.togglePause();
+                          g.rematch();
+                        },
+                        icon: const Icon(Icons.replay, size: 18),
+                        label: const Text('REINICIAR PARTIDA', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                      ),
+                      const SizedBox(height: 7),
+                      OutlinedButton.icon(
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: Colors.white70,
+                          side: const BorderSide(color: Colors.white38),
+                          padding: const EdgeInsets.symmetric(vertical: 8),
+                        ),
+                        onPressed: () {
+                          g.togglePause();
+                          g.toMenu();
+                        },
+                        icon: const Icon(Icons.home, size: 18),
+                        label: const Text('SAIR PARA O MENU', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: FilledButton.tonalIcon(
-                  onPressed: () {
-                    setState(() {
-                      g.toggleVibration();
-                    });
-                  },
-                  icon: Icon(g.vibrationEnabled ? Icons.vibration : Icons.smartphone),
-                  label: Text(g.vibrationEnabled ? 'VIBRAÇÃO: ON 📳' : 'VIBRAÇÃO: OFF 📴'),
+                const SizedBox(width: 12),
+                // Coluna Direita: Opções (Som, Vibração, Cenário)
+                Expanded(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      FilledButton.tonalIcon(
+                        style: FilledButton.styleFrom(
+                          backgroundColor: g.sfxEnabled ? const Color(0xFF1B5E20) : const Color(0xFF37474F),
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 8),
+                        ),
+                        onPressed: () {
+                          setState(() {
+                            g.toggleSfx();
+                          });
+                        },
+                        icon: Icon(g.sfxEnabled ? Icons.volume_up : Icons.volume_off, size: 18),
+                        label: Text(
+                          g.sfxEnabled ? 'SOM: ON 🔊' : 'SOM: OFF 🔇',
+                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+                        ),
+                      ),
+                      const SizedBox(height: 7),
+                      FilledButton.tonalIcon(
+                        style: FilledButton.styleFrom(
+                          backgroundColor: g.vibrationEnabled ? const Color(0xFF4A148C) : const Color(0xFF37474F),
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 8),
+                        ),
+                        onPressed: () {
+                          setState(() {
+                            g.toggleVibration();
+                          });
+                        },
+                        icon: Icon(g.vibrationEnabled ? Icons.vibration : Icons.smartphone, size: 18),
+                        label: Text(
+                          g.vibrationEnabled ? 'VIBRAÇÃO: ON 📳' : 'VIBRAÇÃO: OFF 📴',
+                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+                        ),
+                      ),
+                      const SizedBox(height: 7),
+                      FilledButton.tonalIcon(
+                        style: FilledButton.styleFrom(
+                          backgroundColor: g.isBeach ? const Color(0xFFE65100) : const Color(0xFF0D47A1),
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 8),
+                        ),
+                        onPressed: () {
+                          setState(() {
+                            g.toggleArena();
+                          });
+                        },
+                        icon: Icon(g.isBeach ? Icons.beach_access : Icons.stadium, size: 18),
+                        label: Text(
+                          g.isBeach ? 'PRAIA 🏖️' : 'GINÁSIO 🏢',
+                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          FilledButton.tonalIcon(
-            onPressed: () {
-              setState(() {
-                g.toggleArena();
-              });
-            },
-            icon: Icon(g.isBeach ? Icons.sports_volleyball : Icons.beach_access),
-            label: Text(g.isBeach ? 'CENÁRIO: GINÁSIO' : 'CENÁRIO: PRAIA'),
-          ),
-          const SizedBox(height: 10),
-          FilledButton.tonalIcon(
-            onPressed: () {
-              g.togglePause();
-              g.rematch();
-            },
-            icon: const Icon(Icons.replay),
-            label: const Text('REINICIAR PARTIDA'),
-          ),
-          const SizedBox(height: 10),
-          OutlinedButton.icon(
-            style: OutlinedButton.styleFrom(
-              foregroundColor: Colors.white70,
-              side: const BorderSide(color: Colors.white38),
+              ],
             ),
-            onPressed: () {
-              g.togglePause();
-              g.toMenu();
-            },
-            icon: const Icon(Icons.home),
-            label: const Text('SAIR PARA O MENU'),
-          ),
-          const SizedBox(height: 10),
-          TextButton.icon(
-            style: TextButton.styleFrom(foregroundColor: Colors.amberAccent),
-            onPressed: () async {
-              ScaffoldMessenger.maybeOf(context)?.showSnackBar(const SnackBar(
-                content: Text('Verificando atualizações no GitHub...'),
-                duration: Duration(seconds: 2),
-              ));
-              final info = await AutoUpdateService.checkForUpdate();
-              if (!context.mounted) return;
-              if (info.hasUpdate) {
-                UpdateDialog.show(context, info);
-              } else {
-                ScaffoldMessenger.maybeOf(context)?.showSnackBar(SnackBar(
-                  content: Text('O Vôlei já está atualizado (v${info.currentVersion})!'),
-                  duration: const Duration(seconds: 2),
+            const SizedBox(height: 6),
+            // Rodapé sutil com verificação de atualização
+            InkWell(
+              borderRadius: BorderRadius.circular(6),
+              onTap: () async {
+                ScaffoldMessenger.maybeOf(context)?.showSnackBar(const SnackBar(
+                  content: Text('Verificando atualizações no GitHub...'),
+                  duration: Duration(seconds: 2),
                 ));
-              }
-            },
-            icon: const Icon(Icons.system_update, size: 18),
-            label: const Text('BUSCAR ATUALIZAÇÕES'),
-          ),
-        ],
+                final info = await AutoUpdateService.checkForUpdate();
+                if (!context.mounted) return;
+                if (info.hasUpdate) {
+                  UpdateDialog.show(context, info);
+                } else {
+                  ScaffoldMessenger.maybeOf(context)?.showSnackBar(SnackBar(
+                    content: Text('O Vôlei já está atualizado (v${info.currentVersion})!'),
+                    duration: const Duration(seconds: 2),
+                  ));
+                }
+              },
+              child: const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                child: Text(
+                  '🔍 Buscar atualizações',
+                  style: TextStyle(
+                    color: Colors.white54,
+                    fontSize: 11,
+                    decoration: TextDecoration.underline,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

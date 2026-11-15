@@ -237,7 +237,7 @@ class AutoUpdateService {
     });
   }
 
-  /// Baixa o APK de release com progresso e retorna a referência do arquivo baixado
+  /// Baixa o APK de release com progresso e suporte a retry automático em caso de oscilação de rede
   static Future<File> downloadApk({
     required String downloadUrl,
     String? version,
@@ -249,41 +249,71 @@ class AutoUpdateService {
       throw UnsupportedError('Auto-update via APK suportado apenas no Android nativo.');
     }
 
-    onStatus('Iniciando download do pacote...');
-    await cleanupOldApks(keepVersion: version);
-    final client = http.Client();
-    try {
-      final request = http.Request('GET', Uri.parse(downloadUrl));
-      final response = await client.send(request);
+    const maxAttempts = 3;
+    for (var attempt = 1; attempt <= maxAttempts; attempt++) {
+      final client = http.Client();
+      IOSink? sink;
+      File? apkFile;
+      try {
+        if (attempt > 1) {
+          onStatus('Reconectando download (tentativa $attempt/$maxAttempts)...');
+          await Future<void>.delayed(const Duration(milliseconds: 1500));
+        } else {
+          onStatus('Iniciando download do pacote...');
+        }
+        await cleanupOldApks(keepVersion: version);
 
-      if (response.statusCode != 200) {
-        throw HttpException('Falha no download: HTTP ${response.statusCode}');
+        final request = http.Request('GET', Uri.parse(downloadUrl));
+        request.headers['User-Agent'] = 'Volei-Arcade-AutoUpdate';
+        final response = await client.send(request);
+
+        if (response.statusCode != 200) {
+          throw HttpException('Falha no servidor: HTTP ${response.statusCode}');
+        }
+
+        final totalBytes = response.contentLength ?? 0;
+        var receivedBytes = 0;
+
+        apkFile = await getTargetApkFile(version);
+        if (await apkFile.exists()) {
+          await apkFile.delete();
+        }
+
+        sink = apkFile.openWrite();
+        await response.stream.listen((chunk) {
+          receivedBytes += chunk.length;
+          sink?.add(chunk);
+          final progress = totalBytes > 0 ? (receivedBytes / totalBytes) : 0.0;
+          onProgress(progress, receivedBytes, totalBytes);
+        }).asFuture();
+
+        await sink.flush();
+        await sink.close();
+        sink = null;
+
+        if (totalBytes > 0 && receivedBytes < (totalBytes * 0.95).toInt()) {
+          throw HttpException('Download incompleto ($receivedBytes de $totalBytes bytes).');
+        }
+
+        onStatus('Download concluído com sucesso!');
+        return apkFile;
+      } catch (e) {
+        try {
+          await sink?.close();
+        } catch (_) {}
+        if (apkFile != null && await apkFile.exists()) {
+          try {
+            await apkFile.delete();
+          } catch (_) {}
+        }
+        if (attempt >= maxAttempts) {
+          rethrow;
+        }
+      } finally {
+        client.close();
       }
-
-      final totalBytes = response.contentLength ?? 0;
-      var receivedBytes = 0;
-
-      final apkFile = await getTargetApkFile(version);
-      if (await apkFile.exists()) {
-        await apkFile.delete();
-      }
-
-      final sink = apkFile.openWrite();
-      await response.stream.listen((chunk) {
-        receivedBytes += chunk.length;
-        sink.add(chunk);
-        final progress = totalBytes > 0 ? (receivedBytes / totalBytes) : 0.0;
-        onProgress(progress, receivedBytes, totalBytes);
-      }).asFuture();
-
-      await sink.flush();
-      await sink.close();
-
-      onStatus('Download concluído com sucesso!');
-      return apkFile;
-    } finally {
-      client.close();
     }
+    throw StateError('Falha no download após $maxAttempts tentativas.');
   }
 
   /// Baixa o APK de release e em seguida aciona a instalação

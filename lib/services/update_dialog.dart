@@ -206,7 +206,16 @@ class _UpdateDialogState extends State<UpdateDialog> with WidgetsBindingObserver
       if (mounted) {
         setState(() {
           _downloading = false;
-          _errorMessage = 'Falha no processo: $e';
+          final str = e.toString();
+          if (str.contains('Connection closed') ||
+              str.contains('SocketException') ||
+              str.contains('ClientException') ||
+              str.contains('HttpException')) {
+            _errorMessage =
+                '⚠️ Oscilação na conexão com a internet durante o download.\nToque em "BAIXAR E ATUALIZAR" para tentar novamente ou baixe diretamente pelo navegador abaixo.';
+          } else {
+            _errorMessage = 'Falha no processo: $e';
+          }
         });
       }
     }
