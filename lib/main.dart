@@ -1303,6 +1303,7 @@ class VolleyGame extends FlameGame with KeyboardEvents {
       crowd = 2.0;
       final big = score[scorer] >= 14 || consecutivePlayerPoints >= 2;
       ArcadeAudio.playPointCheer(perfect: big);
+      ArcadeAudio.playApplause();
       _sparkBall(18, Colors.amber, 200);
     } else {
       consecutivePlayerPoints = 0;

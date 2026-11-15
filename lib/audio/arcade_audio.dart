@@ -4,14 +4,13 @@ import 'package:audioplayers/audioplayers.dart';
 
 /// Sistema de áudio arcade multiplataforma (Android, iOS, Web, Desktop) via audioplayers.
 ///
-/// Otimizado para máxima fluidez em mobile:
-/// 1. Música de fundo (BGM) desativada para eliminar repetição e consumo de recursos.
-/// 2. Efeitos sonoros das ações do jogo (SFX) executados com latência ultrabaixa via SoundPool.
-/// 3. Zero chamadas síncronas ao AudioService do Android no loop de renderização (AndroidAudioFocus.none).
-/// 4. Dois players dedicados (impactos da bola e eventos do jogo) para evitar rotação pesada de canais.
-/// 5. Debounce inteligente por som para prevenir sobrecarga de mensagens IPC e travamentos.
+/// Arquitetura de canais dedicados para efeitos sonoros (SFX):
+/// 1. Música de fundo (BGM) desativada a pedido do usuário (somente efeitos sonoros ativos).
+/// 2. Canais dedicados por categoria de som (toque, cortada, apito, ponto, aplausos/torcida).
+/// 3. Chamada de stop() assíncrona antes do play() para garantir reset de estado (`playing = false`)
+///    no Android, impedindo que o som emudeça após alguns segundos de jogo.
+/// 4. Suporte a aplausos vibrantes e comemorações quando o time do jogador faz ponto.
 class ArcadeAudio {
-  // Trilha musical desativada a pedido do usuário (somente efeitos sonoros ativos)
   static bool _musicEnabled = false;
   static bool get isMusicEnabled => _musicEnabled;
 
@@ -47,7 +46,7 @@ class ArcadeAudio {
     }
   }
 
-  /// Contexto de áudio sem solicitação de foco exclusivo para Android e iOS
+  /// Contexto de áudio sem disputa de foco exclusivo (nunca pausa outros sons)
   static final AudioContext _audioContext = AudioContext(
     android: const AudioContextAndroid(
       isSpeakerphoneOn: false,
@@ -68,7 +67,7 @@ class ArcadeAudio {
     _initialized = true;
     try {
       AudioPlayer.global.setAudioContext(_audioContext).catchError((_) {});
-      // Pré-carrega os arquivos de efeitos no cache do dispositivo de forma assíncrona
+      // Pré-carrega todos os efeitos no cache do dispositivo de forma assíncrona
       AudioCache.instance.loadAll(const [
         'audio/touch.wav',
         'audio/spike.wav',
@@ -84,93 +83,83 @@ class ArcadeAudio {
   }
 
   // ============================================================
-  //  PLAYERS DE EFEITOS (Dedicados: Impactos de bola e Eventos)
+  //  PLAYERS DEDICADOS POR CATEGORIA (Zero colisão de canais)
   // ============================================================
-  static AudioPlayer? _hitPlayerInstance;
-  static AudioPlayer? _eventPlayerInstance;
+  static AudioPlayer? _touchPlayerInstance;
+  static AudioPlayer? _spikePlayerInstance;
+  static AudioPlayer? _whistlePlayerInstance;
+  static AudioPlayer? _pointPlayerInstance;
+  static AudioPlayer? _cheerPlayerInstance;
 
-  static AudioPlayer? get _hitPlayer {
+  static AudioPlayer? _createPlayer(double volume) {
     if (_isTestEnvironment()) return null;
     try {
-      if (_hitPlayerInstance == null) {
-        final p = AudioPlayer();
-        p.setAudioContext(_audioContext).catchError((_) {});
-        p.setVolume(0.90).catchError((_) {});
-        _hitPlayerInstance = p;
-      }
-      return _hitPlayerInstance;
+      final p = AudioPlayer();
+      p.setAudioContext(_audioContext).catchError((_) {});
+      p.setVolume(volume).catchError((_) {});
+      return p;
     } catch (_) {
       return null;
     }
   }
 
-  static AudioPlayer? get _eventPlayer {
-    if (_isTestEnvironment()) return null;
+  static AudioPlayer? get _touchPlayer =>
+      _touchPlayerInstance ??= _createPlayer(0.90);
+
+  static AudioPlayer? get _spikePlayer =>
+      _spikePlayerInstance ??= _createPlayer(1.0);
+
+  static AudioPlayer? get _whistlePlayer =>
+      _whistlePlayerInstance ??= _createPlayer(0.90);
+
+  static AudioPlayer? get _pointPlayer =>
+      _pointPlayerInstance ??= _createPlayer(0.95);
+
+  static AudioPlayer? get _cheerPlayer =>
+      _cheerPlayerInstance ??= _createPlayer(0.85);
+
+  /// Executa o som garantindo que qualquer estado anterior seja resetado
+  static void _playSound(AudioPlayer? player, String file) {
+    if (!_sfxEnabled || _isTestEnvironment() || player == null) return;
     try {
-      if (_eventPlayerInstance == null) {
-        final p = AudioPlayer();
-        p.setAudioContext(_audioContext).catchError((_) {});
-        p.setVolume(0.95).catchError((_) {});
-        _eventPlayerInstance = p;
-      }
-      return _eventPlayerInstance;
-    } catch (_) {
-      return null;
-    }
-  }
-
-  static final Map<String, int> _lastPlayedMs = {};
-
-  static void _playHit(String file, {int minIntervalMs = 50}) {
-    if (!_sfxEnabled || _isTestEnvironment()) return;
-    try {
-      final now = DateTime.now().millisecondsSinceEpoch;
-      final last = _lastPlayedMs[file] ?? 0;
-      if (now - last < minIntervalMs) return;
-      _lastPlayedMs[file] = now;
-
-      _hitPlayer?.play(AssetSource('audio/$file'), mode: PlayerMode.lowLatency).catchError((_) {});
-    } catch (_) {}
-  }
-
-  static void _playEvent(String file, {int minIntervalMs = 250}) {
-    if (!_sfxEnabled || _isTestEnvironment()) return;
-    try {
-      final now = DateTime.now().millisecondsSinceEpoch;
-      final last = _lastPlayedMs[file] ?? 0;
-      if (now - last < minIntervalMs) return;
-      _lastPlayedMs[file] = now;
-
-      _eventPlayer?.play(AssetSource('audio/$file'), mode: PlayerMode.lowLatency).catchError((_) {});
+      // Chama stop() primeiro para resetar o flag nativo `playing` no Android,
+      // garantindo que os sons continuem tocando por tempo indeterminado
+      player.stop().then((_) {
+        player.play(AssetSource('audio/$file')).catchError((_) {});
+      }).catchError((_) {
+        // Fallback direto se o stop falhar
+        player.play(AssetSource('audio/$file')).catchError((_) {});
+      });
     } catch (_) {}
   }
 
   // ============================================================
   //  EFEITOS SONOROS DAS AÇÕES DO JOGO
   // ============================================================
-  static void playTouch() => _playHit('touch.wav', minIntervalMs: 60);
+  static void playTouch() => _playSound(_touchPlayer, 'touch.wav');
+
+  static void playBounce() => _playSound(_touchPlayer, 'bounce.wav');
 
   static void playSpike({bool perfect = false}) =>
-      _playHit(perfect ? 'spike_perfect.wav' : 'spike.wav', minIntervalMs: 120);
+      _playSound(_spikePlayer, perfect ? 'spike_perfect.wav' : 'spike.wav');
 
-  static void playBlock() => _playHit('block.wav', minIntervalMs: 120);
+  static void playBlock() => _playSound(_spikePlayer, 'block.wav');
 
-  static void playBounce() => _playHit('bounce.wav', minIntervalMs: 80);
+  static void playWhistle() => _playSound(_whistlePlayer, 'whistle.wav');
 
-  static void playWhistle() => _playEvent('whistle.wav', minIntervalMs: 300);
-
-  static void playCrowdCheer({bool big = false}) =>
-      _playEvent('cheer.wav', minIntervalMs: 400);
-
-  static void playApplause() => _playEvent('cheer.wav', minIntervalMs: 400);
-
-  static void playStadiumHorn() => _playEvent('horn.wav', minIntervalMs: 350);
+  static void playStadiumHorn() => _playSound(_whistlePlayer, 'horn.wav');
 
   static void playPointCheer({bool perfect = false}) =>
-      _playEvent('point.wav', minIntervalMs: 350);
+      _playSound(_pointPlayer, 'point.wav');
+
+  /// Aplausos e aclamação da torcida ao fazer ponto
+  static void playApplause() => _playSound(_cheerPlayer, 'cheer.wav');
+
+  static void playCrowdCheer({bool big = false}) =>
+      _playSound(_cheerPlayer, 'cheer.wav');
 
   // ============================================================
-  //  MÚSICA (Mantida compatibilidade de API como No-Op a pedido)
+  //  MÚSICA (Compatibilidade com testes / No-Op a pedido)
   // ============================================================
   static void setMusicEnabled(bool enabled) {
     _musicEnabled = enabled;
