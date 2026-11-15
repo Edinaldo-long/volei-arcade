@@ -1,9 +1,14 @@
 package com.edinaldo.volei
 
+import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.media.AudioAttributes
 import android.net.Uri
 import android.os.Build
+import android.os.VibrationEffect
+import android.os.Vibrator
+import android.os.VibratorManager
 import android.provider.Settings
 import androidx.core.content.FileProvider
 import io.flutter.embedding.android.FlutterActivity
@@ -13,6 +18,7 @@ import java.io.File
 
 class MainActivity : FlutterActivity() {
     private val CHANNEL = "com.edinaldo.volei/installer"
+    private val VIBRATOR_CHANNEL = "com.edinaldo.volei/vibrator"
 
     override fun onWindowFocusChanged(hasFocus: Boolean) {
         super.onWindowFocusChanged(hasFocus)
@@ -143,6 +149,82 @@ class MainActivity : FlutterActivity() {
                         }
                     } else {
                         result.error("INVALID_URL", "URL vazia", null)
+                    }
+                }
+                else -> result.notImplemented()
+            }
+        }
+
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, VIBRATOR_CHANNEL).setMethodCallHandler { call, result ->
+            when (call.method) {
+                "vibrate" -> {
+                    val duration = (call.argument<Int>("duration") ?: 45).toLong()
+                    val amplitude = call.argument<Int>("amplitude") ?: 255
+                    try {
+                        val vibrator = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                            val vm = getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as? VibratorManager
+                            vm?.defaultVibrator ?: (getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator)
+                        } else {
+                            @Suppress("DEPRECATION")
+                            getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator
+                        }
+
+                        if (vibrator != null && vibrator.hasVibrator()) {
+                            val audioAttributes = AudioAttributes.Builder()
+                                .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                                .setUsage(AudioAttributes.USAGE_GAME)
+                                .build()
+
+                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                                val effect = VibrationEffect.createOneShot(
+                                    duration,
+                                    if (amplitude in 1..255) amplitude else VibrationEffect.DEFAULT_AMPLITUDE
+                                )
+                                vibrator.vibrate(effect, audioAttributes)
+                            } else {
+                                @Suppress("DEPRECATION")
+                                vibrator.vibrate(duration, audioAttributes)
+                            }
+                            result.success(true)
+                        } else {
+                            result.success(false)
+                        }
+                    } catch (e: Exception) {
+                        result.error("VIBRATE_ERROR", e.message, null)
+                    }
+                }
+                "vibrateWaveform" -> {
+                    val timingsList = call.argument<List<Int>>("timings") ?: listOf(0, 70, 50, 80)
+                    val timings = timingsList.map { it.toLong() }.toLongArray()
+                    val repeat = call.argument<Int>("repeat") ?: -1
+                    try {
+                        val vibrator = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                            val vm = getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as? VibratorManager
+                            vm?.defaultVibrator ?: (getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator)
+                        } else {
+                            @Suppress("DEPRECATION")
+                            getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator
+                        }
+
+                        if (vibrator != null && vibrator.hasVibrator()) {
+                            val audioAttributes = AudioAttributes.Builder()
+                                .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                                .setUsage(AudioAttributes.USAGE_GAME)
+                                .build()
+
+                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                                val effect = VibrationEffect.createWaveform(timings, repeat)
+                                vibrator.vibrate(effect, audioAttributes)
+                            } else {
+                                @Suppress("DEPRECATION")
+                                vibrator.vibrate(timings, repeat, audioAttributes)
+                            }
+                            result.success(true)
+                        } else {
+                            result.success(false)
+                        }
+                    } catch (e: Exception) {
+                        result.error("VIBRATE_ERROR", e.message, null)
                     }
                 }
                 else -> result.notImplemented()
