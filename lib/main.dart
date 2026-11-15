@@ -311,6 +311,7 @@ class VolleyGame extends FlameGame with KeyboardEvents {
 
   @override
   Future<void> onLoad() async {
+    ArcadeAudio.init();
     controlled[0] = players[0];
     controlled[1] = players[2];
     _nextServe();
@@ -951,8 +952,8 @@ class VolleyGame extends FlameGame with KeyboardEvents {
         ArcadeAudio.playApplause();
       }
 
-      if (eval.hitstopDuration > 0) {
-        hitstop.trigger(eval.hitstopDuration);
+      if (eval.isPerfect) {
+        hitstop.trigger(0.025);
       }
       cameraShake.addTrauma(eval.shakeTrauma);
       shake = math.max(shake, eval.isPerfect ? 8.0 : 5.0);
@@ -1083,8 +1084,8 @@ class VolleyGame extends FlameGame with KeyboardEvents {
         speedMultiplier: eval.speedMultiplier * 1.25,
       );
 
-      if (eval.hitstopDuration > 0) {
-        hitstop.trigger(eval.hitstopDuration);
+      if (eval.isPerfect) {
+        hitstop.trigger(0.025);
       }
       cameraShake.addTrauma(math.max(0.40, eval.shakeTrauma));
       shake = math.max(shake, eval.isPerfect ? 8.0 : 5.0);
@@ -1273,7 +1274,7 @@ class VolleyGame extends FlameGame with KeyboardEvents {
       outgoing = true;
       blockCd = 0.35;
 
-      hitstop.trigger(eval.hitstopDuration);
+      hitstop.trigger(0.025);
       cameraShake.addTrauma(eval.shakeTrauma);
       shake = math.max(shake, 7);
       _msg('MONSTER BLOCK! 🧱', 1.0);

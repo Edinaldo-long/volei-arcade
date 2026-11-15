@@ -122,12 +122,16 @@ class _TournamentCelebrationWidgetState extends State<TournamentCelebrationWidge
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        final isLandscape = constraints.maxHeight < 520;
-        if (isLandscape) {
-          return _buildLandscape(context, title, subtitle);
-        } else {
-          return _buildPortrait(context, title, subtitle);
-        }
+        final isLandscape = constraints.maxWidth > constraints.maxHeight;
+        final content = isLandscape
+            ? _buildLandscape(context, title, subtitle)
+            : _buildPortrait(context, title, subtitle);
+        return Center(
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            child: content,
+          ),
+        );
       },
     );
   }
@@ -234,22 +238,25 @@ class _TournamentCelebrationWidgetState extends State<TournamentCelebrationWidge
                     borderRadius: BorderRadius.circular(6),
                     border: Border.all(color: Colors.white24),
                   ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      FlagRenderer.flagWidget(widget.championCountry, width: 20, height: 13),
-                      const SizedBox(width: 6),
-                      Text(
-                        '${widget.championCountry} ${widget.championScore}  ×  ${widget.rivalScore} ${widget.rivalCountry}',
-                        style: const TextStyle(
-                          color: Color(0xFFFFD700),
-                          fontSize: 13,
-                          fontWeight: FontWeight.w900,
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        FlagRenderer.flagWidget(widget.championCountry, width: 20, height: 13),
+                        const SizedBox(width: 6),
+                        Text(
+                          '${widget.championCountry} ${widget.championScore}  ×  ${widget.rivalScore} ${widget.rivalCountry}',
+                          style: const TextStyle(
+                            color: Color(0xFFFFD700),
+                            fontSize: 13,
+                            fontWeight: FontWeight.w900,
+                          ),
                         ),
-                      ),
-                      const SizedBox(width: 6),
-                      FlagRenderer.flagWidget(widget.rivalCountry, width: 20, height: 13),
-                    ],
+                        const SizedBox(width: 6),
+                        FlagRenderer.flagWidget(widget.rivalCountry, width: 20, height: 13),
+                      ],
+                    ),
                   ),
                 ),
 
@@ -282,7 +289,7 @@ class _TournamentCelebrationWidgetState extends State<TournamentCelebrationWidge
                         onPressed: widget.onPlayAgain,
                         icon: const Icon(Icons.emoji_events, size: 17),
                         label: const Text(
-                          'JOGAR NOVAMENTE',
+                          'JOGAR TORNEIO NOVAMENTE',
                           style: TextStyle(fontWeight: FontWeight.w900, fontSize: 12),
                         ),
                       ),
