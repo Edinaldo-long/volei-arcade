@@ -216,6 +216,7 @@ class VolleyGame extends FlameGame with KeyboardEvents {
   bool ballTossed = false; // saque viagem: bola lançada no ar aguardando corte/toque
   double serveTossTimer = 0.0;
   bool musicEnabled = true;
+  bool sfxEnabled = true;
   int consecutivePlayerPoints = 0;
 
   int playerTeamIndex = 0; // 0 = BRASIL
@@ -342,6 +343,12 @@ class VolleyGame extends FlameGame with KeyboardEvents {
     _msg(musicEnabled ? 'MÚSICA: LIGADA 🎵' : 'MÚSICA: DESLIGADA 🔇', 1.2);
   }
 
+  void toggleSfx() {
+    sfxEnabled = !sfxEnabled;
+    ArcadeAudio.setSfxEnabled(sfxEnabled);
+    _msg(sfxEnabled ? 'EFEITOS SONOROS: LIGADOS 🔊' : 'EFEITOS SONOROS: MUDO 🔇', 1.2);
+  }
+
   void toggleNextMusicTrack() {
     ArcadeAudio.nextTrack();
     _msg('MÚSICA: ${ArcadeAudio.currentTrackName}', 1.6);
@@ -425,11 +432,6 @@ class VolleyGame extends FlameGame with KeyboardEvents {
     overlays.remove('controls');
     overlays.remove('pause');
     _safeAddOverlay('controls');
-    // Alterna automaticamente para uma música diferente a cada jogo
-    ArcadeAudio.nextTrack();
-    if (musicEnabled) {
-      ArcadeAudio.startBgm();
-    }
     _nextServe();
     final rTitle = mode == 0
         ? const ['QUARTAS', 'SEMIFINAL', 'FINAL', 'GRANDE FINAL'][math.min(round, 3)]
@@ -492,7 +494,6 @@ class VolleyGame extends FlameGame with KeyboardEvents {
       ArcadeAudio.playPointCheer(perfect: true);
       if (mode == 0) {
         ArcadeAudio.playCrowdCheer(big: true);
-        ArcadeAudio.playApplause();
       }
     }
   }
@@ -949,11 +950,6 @@ class VolleyGame extends FlameGame with KeyboardEvents {
       if (_isHumanTeam(t) && eval.isPerfect) {
         crowd = 1.8;
         ArcadeAudio.playCrowdCheer(big: false);
-        ArcadeAudio.playApplause();
-      }
-
-      if (eval.isPerfect) {
-        hitstop.trigger(0.025);
       }
       cameraShake.addTrauma(eval.shakeTrauma);
       shake = math.max(shake, eval.isPerfect ? 8.0 : 5.0);
@@ -1084,9 +1080,6 @@ class VolleyGame extends FlameGame with KeyboardEvents {
         speedMultiplier: eval.speedMultiplier * 1.25,
       );
 
-      if (eval.isPerfect) {
-        hitstop.trigger(0.025);
-      }
       cameraShake.addTrauma(math.max(0.40, eval.shakeTrauma));
       shake = math.max(shake, eval.isPerfect ? 8.0 : 5.0);
 
@@ -1102,7 +1095,6 @@ class VolleyGame extends FlameGame with KeyboardEvents {
       if (_isHumanTeam(t) && eval.isPerfect) {
         crowd = 2.0;
         ArcadeAudio.playCrowdCheer(big: true);
-        ArcadeAudio.playApplause();
       }
       _msg(eval.isPerfect ? 'SAQUE VIAGEM PERFEITO!!' : 'SAQUE VIAGEM POTENTE!', 1.3);
       final sparkCount = eval.isPerfect ? 24 : 14;
@@ -1205,13 +1197,12 @@ class VolleyGame extends FlameGame with KeyboardEvents {
         }
       },
       onGroundCollision: (impactSpeed) {
-        if (phase == Phase.rally) _ballLanded();
-        if (phase == Phase.serving && ballTossed) {
+        if (phase == Phase.rally) {
+          _ballLanded();
+        } else if (phase == Phase.serving && ballTossed) {
           ballTossed = false;
-          ArcadeAudio.playBounce();
           _point(1 - serving, 'FALTA NO SAQUE! ');
-        }
-        if (impactSpeed > 100) {
+        } else if (impactSpeed > 100) {
           ArcadeAudio.playBounce();
           _sparkBall(10, const Color(0xFFE8B070), 120);
           cameraShake.addTrauma(0.25);
@@ -1274,7 +1265,6 @@ class VolleyGame extends FlameGame with KeyboardEvents {
       outgoing = true;
       blockCd = 0.35;
 
-      hitstop.trigger(0.025);
       cameraShake.addTrauma(eval.shakeTrauma);
       shake = math.max(shake, 7);
       _msg('MONSTER BLOCK! 🧱', 1.0);
@@ -1282,7 +1272,6 @@ class VolleyGame extends FlameGame with KeyboardEvents {
       if (_isHumanTeam(p.team)) {
         crowd = 2.0;
         ArcadeAudio.playCrowdCheer(big: true);
-        ArcadeAudio.playApplause();
       }
       timingPopups.add(
         text: 'MONSTER BLOCK! 🧱',
@@ -1487,17 +1476,31 @@ class VolleyGame extends FlameGame with KeyboardEvents {
   // ============================================================
   //  DESENHO (8-bit: sem suavização, blocos e contorno escuro)
   // ============================================================
-  Paint _fill(Color c) => Paint()
-    ..color = c
+  static final Paint _sharedFill = Paint()
+    ..style = PaintingStyle.fill
     ..isAntiAlias = true;
 
-  Paint _stroke(Color c, double w) => Paint()
-    ..color = c
+  static final Paint _sharedStroke = Paint()
     ..style = PaintingStyle.stroke
-    ..strokeWidth = w
     ..strokeCap = StrokeCap.round
     ..strokeJoin = StrokeJoin.round
     ..isAntiAlias = true;
+
+  Paint _fill(Color c) {
+    _sharedFill.color = c;
+    _sharedFill.shader = null;
+    return _sharedFill;
+  }
+
+  Paint _stroke(Color c, double w) {
+    _sharedStroke.color = c;
+    _sharedStroke.strokeWidth = w;
+    _sharedStroke.shader = null;
+    return _sharedStroke;
+  }
+
+  // Cache de TextPainters reutilizáveis para zerar alocações de fonte por frame
+  static final Map<String, TextPainter> _tpCache = {};
 
   void _text(Canvas canvas, String s, Offset pos,
       {double fs = 16,
@@ -1506,27 +1509,33 @@ class VolleyGame extends FlameGame with KeyboardEvents {
       int align = 0}) {
     if (s.isEmpty) return;
     try {
-      final shadowDist = fs >= 22 ? 1.5 : 1.0;
-      final tp = TextPainter(
-        text: TextSpan(
-          text: s,
-          style: TextStyle(
-            color: color,
-            fontSize: fs,
-            fontWeight: w,
-            fontFamily: 'sans-serif',
-            letterSpacing: 0.6,
-            shadows: [
-              Shadow(
-                offset: Offset(shadowDist, shadowDist),
-                blurRadius: fs >= 18 ? 2.0 : 1.0,
-                color: Colors.black,
-              ),
-            ],
+      final key = '$s|${fs.toInt()}|${color.toARGB32()}|$align';
+      TextPainter? tp = _tpCache[key];
+      if (tp == null) {
+        if (_tpCache.length > 80) _tpCache.clear();
+        final shadowDist = fs >= 22 ? 1.5 : 1.0;
+        tp = TextPainter(
+          text: TextSpan(
+            text: s,
+            style: TextStyle(
+              color: color,
+              fontSize: fs,
+              fontWeight: w,
+              fontFamily: 'sans-serif',
+              letterSpacing: 0.6,
+              shadows: [
+                Shadow(
+                  offset: Offset(shadowDist, shadowDist),
+                  blurRadius: fs >= 18 ? 2.0 : 1.0,
+                  color: Colors.black,
+                ),
+              ],
+            ),
           ),
-        ),
-        textDirection: TextDirection.ltr,
-      )..layout();
+          textDirection: TextDirection.ltr,
+        )..layout();
+        _tpCache[key] = tp;
+      }
       final dx = align == 1 ? tp.width / 2 : (align == 2 ? tp.width : 0.0);
       tp.paint(canvas, pos - Offset(dx, 0));
     } catch (_) {}
@@ -1762,17 +1771,11 @@ class VolleyGame extends FlameGame with KeyboardEvents {
               : 0.0;
           final h = (i * 7 + r * 13) % 6;
           pp.color = shirts[h];
-          canvas.drawRRect(
-              RRect.fromRectAndRadius(
-                  Rect.fromLTWH(x - 7, y + 6 + bob, 14, 12), const Radius.circular(3)),
-              pp);
+          canvas.drawRect(Rect.fromLTWH(x - 7, y + 6 + bob, 14, 12), pp);
           pp.color = skins[(i + r).abs() % 3];
-          canvas.drawOval(Rect.fromLTWH(x - 4, y - 3 + bob, 8, 9), pp);
+          canvas.drawRect(Rect.fromLTWH(x - 4, y - 3 + bob, 8, 9), pp);
           pp.color = hairs[(i * 3 + r) % 3];
-          canvas.drawRRect(
-              RRect.fromRectAndRadius(
-                  Rect.fromLTWH(x - 4, y - 3 + bob, 8, 3.5), const Radius.circular(1.5)),
-              pp);
+          canvas.drawRect(Rect.fromLTWH(x - 4, y - 3 + bob, 8, 3.5), pp);
         }
       }
 
@@ -2535,54 +2538,21 @@ class _MenuState extends State<_Menu> {
           ),
           const SizedBox(height: 12),
 
-          // Seletor de Trilha Sonora Retrô
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-            decoration: BoxDecoration(
-              color: const Color(0x22000000),
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: Colors.white24),
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Text('TRILHA:',
-                    style: TextStyle(color: Colors.white70, fontWeight: FontWeight.bold, fontSize: 12)),
-                Flexible(
-                  child: TextButton.icon(
-                    onPressed: () {
-                      setState(() {
-                        g.toggleNextMusicTrack();
-                      });
-                    },
-                    icon: const Icon(Icons.queue_music, color: Colors.amber, size: 18),
-                    label: Text(
-                      ArcadeAudio.currentTrackName,
-                      style: const TextStyle(color: Colors.amber, fontWeight: FontWeight.bold, fontSize: 12),
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 8),
-
-          // Opções de Música e Cenário
+          // Opções de Som e Cenário
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Expanded(
                 child: FilledButton.tonalIcon(
-                  onPressed: () => setState(() => g.toggleMusic()),
+                  onPressed: () => setState(() => g.toggleSfx()),
                   style: FilledButton.styleFrom(
-                    backgroundColor: g.musicEnabled ? const Color(0xFF2E7D32) : const Color(0xFF424242),
+                    backgroundColor: g.sfxEnabled ? const Color(0xFF2E7D32) : const Color(0xFF424242),
                     foregroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
                   ),
-                  icon: Icon(g.musicEnabled ? Icons.music_note : Icons.music_off, size: 18),
+                  icon: Icon(g.sfxEnabled ? Icons.volume_up : Icons.volume_off, size: 18),
                   label: Text(
-                    g.musicEnabled ? 'MÚSICA: ON 🎵' : 'MÚSICA: OFF 🔇',
+                    g.sfxEnabled ? 'SOM: ON 🔊' : 'SOM: OFF 🔇',
                     style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
                   ),
                 ),
@@ -2777,11 +2747,11 @@ class _PauseMenuState extends State<_PauseMenu> {
           FilledButton.tonalIcon(
             onPressed: () {
               setState(() {
-                g.toggleMusic();
+                g.toggleSfx();
               });
             },
-            icon: Icon(g.musicEnabled ? Icons.music_note : Icons.music_off),
-            label: Text(g.musicEnabled ? 'MÚSICA: LIGADA 🎵' : 'MÚSICA: DESLIGADA 🔇'),
+            icon: Icon(g.sfxEnabled ? Icons.volume_up : Icons.volume_off),
+            label: Text(g.sfxEnabled ? 'SOM: LIGADO 🔊' : 'SOM: MUDO 🔇'),
           ),
           const SizedBox(height: 10),
           FilledButton.tonalIcon(
@@ -3025,13 +2995,13 @@ class _ControlsState extends State<_Controls> {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                // Botão Ligar/Desligar Música
+                // Botão Ligar/Desligar Efeitos Sonoros (SOM)
                 Material(
                   color: Colors.transparent,
                   child: InkWell(
                     borderRadius: BorderRadius.circular(10),
                     onTap: () {
-                      game.toggleMusic();
+                      game.toggleSfx();
                       setState(() {});
                     },
                     child: Container(
@@ -3042,7 +3012,7 @@ class _ControlsState extends State<_Controls> {
                         color: const Color(0xDD0A1050),
                         borderRadius: BorderRadius.circular(10),
                         border: Border.all(
-                            color: game.musicEnabled
+                            color: game.sfxEnabled
                                 ? Colors.greenAccent
                                 : Colors.white38,
                             width: 2),
@@ -3055,19 +3025,19 @@ class _ControlsState extends State<_Controls> {
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           Icon(
-                            game.musicEnabled
-                                ? Icons.music_note
-                                : Icons.music_off,
-                            color: game.musicEnabled
+                            game.sfxEnabled
+                                ? Icons.volume_up
+                                : Icons.volume_off,
+                            color: game.sfxEnabled
                                 ? Colors.greenAccent
                                 : Colors.white60,
                             size: 18,
                           ),
                           const SizedBox(width: 4),
                           Text(
-                            game.musicEnabled ? 'SOM' : 'MUDO',
+                            game.sfxEnabled ? 'SOM' : 'MUDO',
                             style: TextStyle(
-                              color: game.musicEnabled
+                              color: game.sfxEnabled
                                   ? Colors.greenAccent
                                   : Colors.white70,
                               fontWeight: FontWeight.w900,

@@ -4,11 +4,58 @@ import 'package:flutter/material.dart';
 /// Renderizador aprimorado de bola de vôlei.
 /// Substitui os arcos simples por uma esfera 3D realista com gradiente esférico,
 /// painéis aerodinâmicos em curva (estilo Mikasa V200W / bola olímpica) e brilho especular.
+///
+/// Otimizado para alto desempenho com reutilização de tintas e clip acelerado por hardware.
 class BallRenderer {
   static const Color kOutline = Color(0xFF14122B);
   static const Color kBluePanel = Color(0xFF1565C0);
   static const Color kYellowPanel = Color(0xFFFFD600);
   static const Color kSeamColor = Color(0xFF0D1B2A);
+
+  // Tintas reutilizáveis para eliminar alocações C++ no frame rate
+  static final Paint _outlinePaint = Paint()
+    ..color = kOutline
+    ..style = PaintingStyle.stroke
+    ..isAntiAlias = true;
+
+  static final Paint _seamPaint = Paint()
+    ..color = kSeamColor
+    ..style = PaintingStyle.stroke
+    ..strokeCap = StrokeCap.round
+    ..isAntiAlias = true;
+
+  static final Paint _bluePanelPaint = Paint()
+    ..color = kBluePanel
+    ..style = PaintingStyle.fill
+    ..isAntiAlias = true;
+
+  static final Paint _yellowPanelPaint = Paint()
+    ..color = kYellowPanel
+    ..style = PaintingStyle.fill
+    ..isAntiAlias = true;
+
+  static final Paint _blueArcPaint = Paint()
+    ..color = kBluePanel
+    ..style = PaintingStyle.stroke
+    ..strokeCap = StrokeCap.round
+    ..isAntiAlias = true;
+
+  static final Paint _yellowArcPaint = Paint()
+    ..color = kYellowPanel
+    ..style = PaintingStyle.stroke
+    ..strokeCap = StrokeCap.round
+    ..isAntiAlias = true;
+
+  static final Paint _highlightPaint = Paint()
+    ..color = Colors.white.withValues(alpha: 0.55)
+    ..style = PaintingStyle.fill
+    ..isAntiAlias = true;
+
+  static final Paint _basePaint = Paint()
+    ..style = PaintingStyle.fill
+    ..isAntiAlias = true;
+
+  static double _lastShaderRadius = -1.0;
 
   static void draw({
     required Canvas canvas,
@@ -30,47 +77,33 @@ class BallRenderer {
       canvas.rotate(-moveAngle);
     }
 
-    // Contorno escuro da bola
-    final outlinePaint = Paint()
-      ..color = kOutline
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = math.max(2.2, radius * 0.16)
-      ..isAntiAlias = true;
-
     // 1. Sombra e base da esfera com gradiente radial (efeito 3D volumétrico)
     final sphereRect = Rect.fromCircle(center: Offset.zero, radius: radius);
-    final sphereGrad = RadialGradient(
-      center: const Alignment(-0.35, -0.35),
-      radius: 0.9,
-      colors: const [
-        Colors.white,
-        Color(0xFFEEEEEE),
-        Color(0xFFB0BEC5),
-        Color(0xFF78909C),
-      ],
-      stops: const [0.0, 0.45, 0.85, 1.0],
-    );
+    if ((_lastShaderRadius - radius).abs() > 0.5) {
+      _lastShaderRadius = radius;
+      _basePaint.shader = const RadialGradient(
+        center: Alignment(-0.35, -0.35),
+        radius: 0.9,
+        colors: [
+          Colors.white,
+          Color(0xFFEEEEEE),
+          Color(0xFFB0BEC5),
+          Color(0xFF78909C),
+        ],
+        stops: [0.0, 0.45, 0.85, 1.0],
+      ).createShader(sphereRect);
+    }
 
-    final basePaint = Paint()
-      ..shader = sphereGrad.createShader(sphereRect)
-      ..style = PaintingStyle.fill
-      ..isAntiAlias = true;
-
-    canvas.drawCircle(Offset.zero, radius, basePaint);
+    canvas.drawCircle(Offset.zero, radius, _basePaint);
 
     // 2. Painéis curvos aerodinâmicos que giram com o ângulo da bola
     canvas.save();
     canvas.rotate(angle);
 
-    // Máscara circular para os painéis ficarem confinados à esfera
-    canvas.clipPath(Path()..addOval(sphereRect));
+    // Máscara circular acelerada por hardware (clipRRect evita buffer de estêncil)
+    canvas.clipRRect(RRect.fromRectAndRadius(sphereRect, Radius.circular(radius)));
 
-    final seamPaint = Paint()
-      ..color = kSeamColor
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = math.max(1.8, radius * 0.12)
-      ..strokeCap = StrokeCap.round
-      ..isAntiAlias = true;
+    _seamPaint.strokeWidth = math.max(1.8, radius * 0.12);
 
     // Painéis azuis e amarelos ondulados
     const panelCount = 3;
@@ -100,14 +133,8 @@ class BallRenderer {
         )
         ..close();
 
-      canvas.drawPath(
-        bluePath,
-        Paint()
-          ..color = (i == 1 ? kYellowPanel : kBluePanel)
-          ..style = PaintingStyle.fill
-          ..isAntiAlias = true,
-      );
-      canvas.drawPath(bluePath, seamPaint);
+      canvas.drawPath(bluePath, i == 1 ? _yellowPanelPaint : _bluePanelPaint);
+      canvas.drawPath(bluePath, _seamPaint);
 
       // Faixa amarela de contraste
       final yellowArc = Path()
@@ -116,15 +143,10 @@ class BallRenderer {
           0.8,
           1.6,
         );
-      canvas.drawPath(
-        yellowArc,
-        Paint()
-          ..color = (i == 1 ? kBluePanel : kYellowPanel)
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = math.max(3.0, radius * 0.32)
-          ..strokeCap = StrokeCap.round
-          ..isAntiAlias = true,
-      );
+
+      final arcPaint = i == 1 ? _blueArcPaint : _yellowArcPaint;
+      arcPaint.strokeWidth = math.max(3.0, radius * 0.32);
+      canvas.drawPath(yellowArc, arcPaint);
 
       canvas.restore();
     }
@@ -132,20 +154,17 @@ class BallRenderer {
     canvas.restore(); // Fecha rotação do spin dos painéis
 
     // 3. Contorno da bola
-    canvas.drawCircle(Offset.zero, radius, outlinePaint);
+    _outlinePaint.strokeWidth = math.max(2.2, radius * 0.16);
+    canvas.drawCircle(Offset.zero, radius, _outlinePaint);
 
     // 4. Brilho especular 3D (highlight superior esquerdo)
-    final highlightPaint = Paint()
-      ..color = Colors.white.withValues(alpha: 0.55)
-      ..style = PaintingStyle.fill
-      ..isAntiAlias = true;
     canvas.drawOval(
       Rect.fromCenter(
         center: Offset(-radius * 0.32, -radius * 0.32),
         width: radius * 0.55,
         height: radius * 0.35,
       ),
-      highlightPaint,
+      _highlightPaint,
     );
 
     canvas.restore();
