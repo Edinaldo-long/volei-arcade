@@ -2237,31 +2237,31 @@ class _MenuState extends State<_Menu> {
             backgroundColor: const Color(0xFF0A1050),
             shape: RoundedRectangleBorder(
               side: const BorderSide(color: Colors.amber, width: 3),
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(14),
             ),
             title: const Row(
               children: [
-                Icon(Icons.emoji_events, color: Colors.amber, size: 24),
-                SizedBox(width: 8),
+                Icon(Icons.emoji_events, color: Colors.amber, size: 28),
+                SizedBox(width: 10),
                 Text(
                   'RIVAIS DO TORNEIO',
                   style: TextStyle(
                     color: Color(0xFFFFD600),
-                    fontSize: 16,
+                    fontSize: 18,
                     fontWeight: FontWeight.w900,
-                    letterSpacing: 1,
+                    letterSpacing: 1.2,
                   ),
                 ),
               ],
             ),
             content: SizedBox(
-              width: 380,
+              width: 420,
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   for (var r = 0; r < 4; r++)
                     Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 2),
+                      padding: const EdgeInsets.symmetric(vertical: 4),
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
@@ -2269,7 +2269,7 @@ class _MenuState extends State<_Menu> {
                             roundNames[r],
                             style: const TextStyle(
                               color: Colors.white,
-                              fontSize: 12,
+                              fontSize: 13,
                               fontWeight: FontWeight.w600,
                             ),
                           ),
@@ -2277,8 +2277,8 @@ class _MenuState extends State<_Menu> {
                             value: g.tournamentRivalIndices[r] % kAvailableTeams.length,
                             dropdownColor: const Color(0xFF0A1050),
                             underline: const SizedBox(),
-                            icon: const Icon(Icons.arrow_drop_down, color: Colors.amber, size: 18),
-                            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12),
+                            icon: const Icon(Icons.arrow_drop_down, color: Colors.amber, size: 22),
+                            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
                             items: [
                               for (var i = 0; i < kAvailableTeams.length; i++)
                                 DropdownMenuItem<int>(
@@ -2286,8 +2286,8 @@ class _MenuState extends State<_Menu> {
                                   child: Row(
                                     mainAxisSize: MainAxisSize.min,
                                     children: [
-                                      FlagRenderer.flagWidget(kAvailableTeams[i].name, width: 22, height: 14),
-                                      const SizedBox(width: 6),
+                                      FlagRenderer.flagWidget(kAvailableTeams[i].name, width: 26, height: 17),
+                                      const SizedBox(width: 8),
                                       Text(kAvailableTeams[i].name),
                                     ],
                                   ),
@@ -2305,7 +2305,7 @@ class _MenuState extends State<_Menu> {
                         ],
                       ),
                     ),
-                  const SizedBox(height: 10),
+                  const SizedBox(height: 12),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                     children: [
@@ -2314,16 +2314,16 @@ class _MenuState extends State<_Menu> {
                           _shuffleRivals(g);
                           setDialogState(() {});
                         },
-                        icon: const Icon(Icons.casino, size: 16, color: Colors.amber),
-                        label: const Text('SORTEAR 🎲', style: TextStyle(color: Colors.amber, fontSize: 12)),
+                        icon: const Icon(Icons.casino, size: 18, color: Colors.amber),
+                        label: const Text('SORTEAR 🎲', style: TextStyle(color: Colors.amber, fontSize: 13, fontWeight: FontWeight.bold)),
                       ),
                       TextButton.icon(
                         onPressed: () {
                           _resetDefaultRivals(g);
                           setDialogState(() {});
                         },
-                        icon: const Icon(Icons.refresh, size: 16, color: Colors.white70),
-                        label: const Text('PADRÃO 🔄', style: TextStyle(color: Colors.white70, fontSize: 12)),
+                        icon: const Icon(Icons.refresh, size: 18, color: Colors.white70),
+                        label: const Text('PADRÃO 🔄', style: TextStyle(color: Colors.white70, fontSize: 13, fontWeight: FontWeight.bold)),
                       ),
                     ],
                   ),
@@ -2335,10 +2335,10 @@ class _MenuState extends State<_Menu> {
                 style: FilledButton.styleFrom(
                   backgroundColor: Colors.amber,
                   foregroundColor: Colors.black,
-                  visualDensity: VisualDensity.compact,
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
                 ),
                 onPressed: () => Navigator.of(ctx).pop(),
-                child: const Text('CONFIRMAR', style: TextStyle(fontWeight: FontWeight.bold)),
+                child: const Text('CONFIRMAR', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
               ),
             ],
           );
@@ -2362,36 +2362,43 @@ class _MenuState extends State<_Menu> {
             // Cabeçalho / Título do Jogo
             Row(
               children: [
-                const Icon(Icons.sports_volleyball, color: Colors.amber, size: 36),
+                const Icon(Icons.sports_volleyball, color: Colors.amber, size: 40),
                 const SizedBox(width: 10),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: const [
-                    Text(
-                      'VÔLEI ARCADE',
-                      style: TextStyle(
-                        color: Color(0xFFFFD600),
-                        fontSize: 22,
-                        fontWeight: FontWeight.w900,
-                        letterSpacing: 2,
-                        shadows: [Shadow(offset: Offset(2, 2), color: Colors.black)],
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: const [
+                      FittedBox(
+                        fit: BoxFit.scaleDown,
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          'VÔLEI ARCADE',
+                          style: TextStyle(
+                            color: Color(0xFFFFD600),
+                            fontSize: 25,
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: 1.5,
+                            shadows: [Shadow(offset: Offset(2, 2), color: Colors.black)],
+                          ),
+                        ),
                       ),
-                    ),
-                    Text(
-                      '2 contra 2  •  até 15 pontos',
-                      style: TextStyle(color: Colors.white70, fontSize: 11),
-                    ),
-                  ],
+                      Text(
+                        '2 contra 2  •  até 15 pontos',
+                        style: TextStyle(color: Colors.white70, fontSize: 12),
+                      ),
+                    ],
+                  ),
                 ),
               ],
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 12),
 
             // Banner de atualização rápida (se houver)
             if (_updateInfo != null && _updateInfo!.hasUpdate) ...[
               Container(
-                margin: const EdgeInsets.only(bottom: 8),
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                margin: const EdgeInsets.only(bottom: 10),
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                 decoration: BoxDecoration(
                   gradient: const LinearGradient(
                     colors: [Color(0xFFE65100), Color(0xFFFF9100)],
@@ -2400,15 +2407,15 @@ class _MenuState extends State<_Menu> {
                 ),
                 child: Row(
                   children: [
-                    const Icon(Icons.system_update_alt, color: Colors.white, size: 18),
-                    const SizedBox(width: 6),
+                    const Icon(Icons.system_update_alt, color: Colors.white, size: 20),
+                    const SizedBox(width: 8),
                     Expanded(
                       child: Text(
                         'Nova versão v pronta!',
                         style: const TextStyle(
                           color: Colors.white,
                           fontWeight: FontWeight.bold,
-                          fontSize: 11,
+                          fontSize: 12,
                         ),
                       ),
                     ),
@@ -2416,13 +2423,13 @@ class _MenuState extends State<_Menu> {
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.white,
                         foregroundColor: const Color(0xFFE65100),
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                         minimumSize: Size.zero,
                         tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                       ),
                       onPressed: () => UpdateDialog.show(context, _updateInfo!),
                       child: const Text('ATUALIZAR',
-                          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 10)),
+                          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11)),
                     ),
                   ],
                 ),
@@ -2431,23 +2438,23 @@ class _MenuState extends State<_Menu> {
 
             // Seletor de país do jogador
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
               decoration: BoxDecoration(
                 color: const Color(0x33000000),
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Colors.white30),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: Colors.white30, width: 1.5),
               ),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   const Text('SEU TIME:',
-                      style: TextStyle(color: Colors.amber, fontWeight: FontWeight.bold, fontSize: 12)),
+                      style: TextStyle(color: Colors.amber, fontWeight: FontWeight.bold, fontSize: 14)),
                   DropdownButton<int>(
                     value: g.playerTeamIndex,
                     dropdownColor: const Color(0xFF0A1050),
                     underline: const SizedBox(),
-                    icon: const Icon(Icons.arrow_drop_down, color: Colors.amber, size: 20),
-                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
+                    icon: const Icon(Icons.arrow_drop_down, color: Colors.amber, size: 24),
+                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15),
                     items: [
                       for (var i = 0; i < kAvailableTeams.length; i++)
                         DropdownMenuItem<int>(
@@ -2455,8 +2462,8 @@ class _MenuState extends State<_Menu> {
                           child: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              FlagRenderer.flagWidget(kAvailableTeams[i].name, width: 24, height: 16),
-                              const SizedBox(width: 8),
+                              FlagRenderer.flagWidget(kAvailableTeams[i].name, width: 28, height: 18),
+                              const SizedBox(width: 10),
                               Text(kAvailableTeams[i].name),
                             ],
                           ),
@@ -2473,37 +2480,37 @@ class _MenuState extends State<_Menu> {
                 ],
               ),
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 10),
 
             // Seletor de Dificuldade
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
               decoration: BoxDecoration(
                 color: const Color(0x33000000),
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Colors.white24),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: Colors.white24, width: 1.5),
               ),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   const Text(
                     'DIFICULDADE:',
-                    style: TextStyle(color: Colors.amber, fontWeight: FontWeight.bold, fontSize: 11),
+                    style: TextStyle(color: Colors.amber, fontWeight: FontWeight.bold, fontSize: 12),
                   ),
-                  const SizedBox(height: 2),
+                  const SizedBox(height: 4),
                   Wrap(
-                    spacing: 6,
+                    spacing: 8,
                     alignment: WrapAlignment.center,
                     children: [
                       for (var i = 0; i < 3; i++)
                         ChoiceChip(
                           visualDensity: VisualDensity.compact,
                           materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 0),
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                           label: Text(
                             const ['Fácil 🟢', 'Normal 🟡', 'Difícil 🔴'][i],
                             style: TextStyle(
-                              fontSize: 10,
+                              fontSize: 12,
                               fontWeight: FontWeight.bold,
                               color: diff == i ? Colors.black : Colors.white,
                             ),
@@ -2517,7 +2524,7 @@ class _MenuState extends State<_Menu> {
                 ],
               ),
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 10),
 
             // Opções de Som e Cenário
             Row(
@@ -2528,30 +2535,28 @@ class _MenuState extends State<_Menu> {
                     style: FilledButton.styleFrom(
                       backgroundColor: g.sfxEnabled ? const Color(0xFF2E7D32) : const Color(0xFF424242),
                       foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
-                      visualDensity: VisualDensity.compact,
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
                     ),
-                    icon: Icon(g.sfxEnabled ? Icons.volume_up : Icons.volume_off, size: 16),
+                    icon: Icon(g.sfxEnabled ? Icons.volume_up : Icons.volume_off, size: 20),
                     label: Text(
                       g.sfxEnabled ? 'SOM: ON 🔊' : 'SOM: OFF 🔇',
-                      style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold),
+                      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
                     ),
                   ),
                 ),
-                const SizedBox(width: 8),
+                const SizedBox(width: 10),
                 Expanded(
                   child: FilledButton.tonalIcon(
                     onPressed: () => setState(() => g.toggleArena()),
                     style: FilledButton.styleFrom(
                       backgroundColor: g.isBeach ? const Color(0xFFF57F17) : const Color(0xFF1565C0),
                       foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
-                      visualDensity: VisualDensity.compact,
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
                     ),
-                    icon: Icon(g.isBeach ? Icons.beach_access : Icons.stadium, size: 16),
+                    icon: Icon(g.isBeach ? Icons.beach_access : Icons.stadium, size: 20),
                     label: Text(
                       g.isBeach ? 'PRAIA 🏖️' : 'GINÁSIO 🏢',
-                      style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold),
+                      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
                     ),
                   ),
                 ),
@@ -2566,11 +2571,11 @@ class _MenuState extends State<_Menu> {
           children: [
             // MODO TORNEIO
             Container(
-              padding: const EdgeInsets.all(6),
+              padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
                 color: const Color(0x22000000),
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Colors.amber.withValues(alpha: 0.4)),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: Colors.amber.withValues(alpha: 0.5), width: 1.5),
               ),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
@@ -2581,109 +2586,101 @@ class _MenuState extends State<_Menu> {
                     style: FilledButton.styleFrom(
                       backgroundColor: const Color(0xFFFFB300),
                       foregroundColor: Colors.black,
-                      padding: const EdgeInsets.symmetric(vertical: 8),
-                      visualDensity: VisualDensity.compact,
+                      padding: const EdgeInsets.symmetric(vertical: 12),
                     ),
-                    icon: const Icon(Icons.emoji_events, size: 18),
+                    icon: const Icon(Icons.emoji_events, size: 24),
                     label: const Text(
                       'JOGAR TORNEIO (4 FASES)',
-                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+                      style: TextStyle(fontWeight: FontWeight.w900, fontSize: 15),
                     ),
                   ),
-                  const SizedBox(height: 4),
+                  const SizedBox(height: 8),
                   OutlinedButton.icon(
                     style: OutlinedButton.styleFrom(
                       foregroundColor: Colors.amber,
-                      side: const BorderSide(color: Colors.amber),
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                      visualDensity: VisualDensity.compact,
+                      side: const BorderSide(color: Colors.amber, width: 1.5),
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                     ),
                     onPressed: () => _openRivalsDialog(context, g),
-                    icon: const Icon(Icons.tune, size: 14),
-                    label: const Text('ESCOLHER RIVAIS DO TORNEIO 🏆', style: TextStyle(fontSize: 10)),
+                    icon: const Icon(Icons.tune, size: 18),
+                    label: const Text('ESCOLHER RIVAIS DO TORNEIO 🏆', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
                   ),
                 ],
               ),
             ),
-            const SizedBox(height: 6),
+            const SizedBox(height: 12),
 
             // MODO AMISTOSO
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+              padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
                 color: const Color(0x22000000),
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Colors.white24),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: Colors.white30, width: 1.5),
               ),
-              child: Row(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  const Text('Rival:',
-                      style: TextStyle(color: Colors.white70, fontWeight: FontWeight.bold, fontSize: 11)),
-                  const SizedBox(width: 6),
-                  DropdownButton<int>(
-                    value: g.exhibitionRivalIndex % kAvailableTeams.length,
-                    dropdownColor: const Color(0xFF0A1050),
-                    underline: const SizedBox(),
-                    icon: const Icon(Icons.arrow_drop_down, color: Colors.amber, size: 18),
-                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 11),
-                    items: [
-                      for (var i = 0; i < kAvailableTeams.length; i++)
-                        DropdownMenuItem<int>(
-                          value: i,
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              FlagRenderer.flagWidget(kAvailableTeams[i].name, width: 20, height: 13),
-                              const SizedBox(width: 4),
-                              Text(kAvailableTeams[i].name),
-                            ],
-                          ),
-                        ),
-                    ],
-                    onChanged: (v) {
-                      if (v != null) {
-                        setState(() {
-                          g.exhibitionRivalIndex = v;
-                        });
-                      }
-                    },
-                  ),
-                  const SizedBox(width: 6),
-                  Expanded(
-                    child: FilledButton.tonalIcon(
-                      onPressed: () => g.startMatch(1, diff: diff),
-                      style: FilledButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 6),
-                        visualDensity: VisualDensity.compact,
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text('RIVAL AMISTOSO:',
+                          style: TextStyle(color: Colors.amber, fontWeight: FontWeight.bold, fontSize: 13)),
+                      DropdownButton<int>(
+                        value: g.exhibitionRivalIndex % kAvailableTeams.length,
+                        dropdownColor: const Color(0xFF0A1050),
+                        underline: const SizedBox(),
+                        icon: const Icon(Icons.arrow_drop_down, color: Colors.amber, size: 22),
+                        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
+                        items: [
+                          for (var i = 0; i < kAvailableTeams.length; i++)
+                            DropdownMenuItem<int>(
+                              value: i,
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  FlagRenderer.flagWidget(kAvailableTeams[i].name, width: 26, height: 17),
+                                  const SizedBox(width: 8),
+                                  Text(kAvailableTeams[i].name),
+                                ],
+                              ),
+                            ),
+                        ],
+                        onChanged: (v) {
+                          if (v != null) {
+                            setState(() {
+                              g.exhibitionRivalIndex = v;
+                            });
+                          }
+                        },
                       ),
-                      icon: const Icon(Icons.person, size: 14),
-                      label: const Text('JOGAR AMISTOSO', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold)),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  FilledButton.tonalIcon(
+                    onPressed: () => g.startMatch(1, diff: diff),
+                    style: FilledButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 12),
                     ),
+                    icon: const Icon(Icons.person, size: 20),
+                    label: const Text('JOGAR AMISTOSO', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
                   ),
                 ],
               ),
-            ),
-            const SizedBox(height: 6),
-
-            // MODO 2 JOGADORES
-            FilledButton.tonalIcon(
-              onPressed: () => g.startMatch(2),
-              style: FilledButton.styleFrom(
-                padding: const EdgeInsets.symmetric(vertical: 6),
-                visualDensity: VisualDensity.compact,
-              ),
-              icon: const Icon(Icons.people, size: 16),
-              label: const Text('2 JOGADORES (VERSUS LOCAL)', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
             ),
           ],
         );
 
         final footer = const Padding(
           padding: EdgeInsets.only(top: 8),
-          child: Text(
-            '🎮 Celular: Analógico na esquerda • Botão laranja = Bater / Sacar • Botão azul = Pular • P = Pausa',
-            textAlign: TextAlign.center,
-            style: TextStyle(color: Colors.white54, fontSize: 10),
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Text(
+              '🎮 Celular: Analógico na esquerda • Botão laranja = Bater / Sacar • Botão azul = Pular • P = Pausa',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.w600),
+            ),
           ),
         );
 
@@ -2692,14 +2689,14 @@ class _MenuState extends State<_Menu> {
             child: FittedBox(
               fit: BoxFit.scaleDown,
               child: Container(
-                width: isLandscape ? 820 : 420,
-                margin: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                padding: const EdgeInsets.fromLTRB(18, 12, 18, 10),
+                width: isLandscape ? 890 : 440,
+                margin: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                padding: const EdgeInsets.fromLTRB(20, 14, 20, 10),
                 decoration: BoxDecoration(
                   color: const Color(0xFF0A1050),
-                  border: Border.all(color: Colors.white, width: 3),
+                  border: Border.all(color: Colors.white, width: 3.5),
                   boxShadow: const [
-                    BoxShadow(color: Colors.black54, offset: Offset(6, 6), blurRadius: 4),
+                    BoxShadow(color: Colors.black87, offset: Offset(6, 6), blurRadius: 6),
                   ],
                 ),
                 child: Column(
@@ -2710,13 +2707,13 @@ class _MenuState extends State<_Menu> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Expanded(child: leftColumn),
-                          const SizedBox(width: 16),
+                          const SizedBox(width: 20),
                           Expanded(child: rightColumn),
                         ],
                       )
                     else ...[
                       leftColumn,
-                      const SizedBox(height: 10),
+                      const SizedBox(height: 12),
                       rightColumn,
                     ],
                     footer,

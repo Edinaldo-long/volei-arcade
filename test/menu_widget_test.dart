@@ -37,20 +37,20 @@ void main() {
     await tester.pump();
   });
 
-  testWidgets('Menu has only Torneio, Amistoso and 2P modes, without training or coach', (tester) async {
+  testWidgets('Menu has only Torneio and Amistoso modes, without 2P, training or coach', (tester) async {
     final game = VolleyGame();
     await tester.pumpWidget(VolleyApp(game: game));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 200));
 
-    // Verifica que o modo treino e treinador foram completamente removidos
+    // Verifica que modo treino, treinador e modo 2P local no celular foram removidos
     expect(find.text('MODO TREINO COM TREINADOR 📋'), findsNothing);
     expect(find.text('PROF. SILVA (TREINADOR)'), findsNothing);
+    expect(find.text('2 JOGADORES (VERSUS LOCAL)'), findsNothing);
 
     // Modos principais disponíveis
     expect(find.text('JOGAR TORNEIO (4 FASES)'), findsOneWidget);
     expect(find.text('JOGAR AMISTOSO'), findsOneWidget);
-    expect(find.text('2 JOGADORES (VERSUS LOCAL)'), findsOneWidget);
 
     // Inicia Amistoso
     game.startMatch(1);

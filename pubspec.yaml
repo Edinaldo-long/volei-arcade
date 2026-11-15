@@ -2,7 +2,7 @@
 description: "Vôlei Arcade 2x2"
 publish_to: 'none'
 
-version: 1.0.12+13
+version: 1.0.13+14
 
 environment:
   sdk: ^3.13.5
