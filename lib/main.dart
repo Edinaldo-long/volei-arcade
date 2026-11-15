@@ -132,9 +132,10 @@ class Pad {
   bool kLeft = false, kRight = false, kUp = false, kDown = false, kJump = false;
   // Gamepad
   bool gLeft = false, gRight = false, gUp = false, gDown = false, gJump = false;
-  // Toque na tela
+  double gAx = 0, gAy = 0;
+  // Toque na tela / Joystick virtual
   bool tJump = false;
-  double ax = 0, ay = 0; // joystick analógico / virtual (-1..1)
+  double vAx = 0, vAy = 0; // joystick analógico / virtual (-1..1)
   double hitBuf = 0; // "buffer" do botão de bater / cortar
   double setBuf = 0; // "buffer" do botão de levantar / armar
 
@@ -144,6 +145,18 @@ class Pad {
   bool get down => kDown || gDown;
   bool get jump => kJump || gJump || tJump;
   set jump(bool v) => tJump = v;
+
+  double get ax => vAx.abs() > 0.08 ? vAx : gAx;
+  set ax(double v) {
+    vAx = v;
+    if (v == 0) gAx = 0;
+  }
+
+  double get ay => vAy.abs() > 0.08 ? vAy : gAy;
+  set ay(double v) {
+    vAy = v;
+    if (v == 0) gAy = 0;
+  }
 
   // Eixos finais: o analógico tem prioridade fora da zona morta, senão usa direcionais
   double get dx {
@@ -612,13 +625,19 @@ class VolleyGame extends FlameGame with KeyboardEvents {
       if (!_eligible(m)) continue;
       if (best == null || d(m) < d(best)) best = m;
     }
-    final cur = controlled[mates.first.team];
-    if (best != null &&
-        cur != null &&
-        cur != best &&
-        _eligible(cur) &&
-        d(cur) <= d(best) + 45) {
-      best = cur;
+    final team = mates.first.team;
+    final cur = controlled[team];
+    if (best != null && cur != null && cur != best && _eligible(cur)) {
+      final isHuman = _isHumanTeam(team);
+      final pad = pads[team];
+      final isSteering = isHuman && (pad.dx.abs() > 0.08 || pad.dy.abs() > 0.08);
+      // Quando o jogador humano está movendo o analógico ativamente, mantém o jogador controlado
+      // com ampla tolerância (220px) para que o movimento nunca seja interrompido no meio do lance.
+      // Quando o analógico está em repouso, uma histerese confortável (120px) evita oscilações bruscas.
+      final hysteresis = isSteering ? 220.0 : (isHuman ? 120.0 : 45.0);
+      if (d(cur) <= d(best) + hysteresis) {
+        best = cur;
+      }
     }
     return best;
   }
@@ -758,8 +777,16 @@ class VolleyGame extends FlameGame with KeyboardEvents {
       double mx = 0, my = 0;
       bool jump = false, wantHit = false;
       if (p.human) {
-        mx = pad.dx; // analógico (joystick/gamepad) ou teclado
-        my = pad.dy;
+        if (pad.dx != 0 || pad.dy != 0) {
+          mx = pad.dx; // analógico (joystick/gamepad) ou teclado com prioridade manual total
+          my = pad.dy;
+        } else if (!_isHumanTeam(1 - p.team) && (p.tx != 0 || p.ty != 0) && (p.slot == 1 || touches[p.team] == 1)) {
+          // No modo 1 jogador, quando o parceiro assume o controle temporário para levantar ou cobrir
+          // e o jogador não está mexendo no analógico, dá suporte automático em direção à bola
+          final dx = p.tx - p.x, dy = p.ty - p.y;
+          if (dx.abs() > 6) mx = dx.sign * math.min(1.0, dx.abs() / 20) * 0.85;
+          if (dy.abs() > 6) my = dy.sign * math.min(1.0, dy.abs() / 20) * 0.85;
+        }
         jump = pad.jump;
         wantHit = pad.hitBuf > 0 || pad.setBuf > 0;
       } else {
@@ -3009,12 +3036,23 @@ class _PadButtonState extends State<_PadButton> {
       );
 }
 
-/// Joystick analógico virtual: um único toque que acompanha o dedo,
-/// permitindo mudar de direção sem soltar.
+/// Joystick analógico virtual com zona de captação ampla e âncora inteligente:
+/// - Base visual compacta fixa no canto inferior esquerdo (não invade a quadra nem esconde o jogador).
+/// - Zona de captação estendida que nunca perde o toque ou travamento.
+/// - Suporte a âncora dinâmica quando o toque ocorre ligeiramente fora da base.
+/// - Recuperação instantânea de ponteiro (caso o sistema cancele ou o toque seja reposicionado).
 class _Joystick extends StatefulWidget {
   final Pad pad;
   final double size;
-  const _Joystick({required this.pad, this.size = 125});
+  final double catchmentWidth;
+  final double catchmentHeight;
+
+  const _Joystick({
+    required this.pad,
+    this.size = 125,
+    this.catchmentWidth = 220,
+    this.catchmentHeight = 180,
+  });
 
   @override
   State<_Joystick> createState() => _JoystickState();
@@ -3022,19 +3060,41 @@ class _Joystick extends StatefulWidget {
 
 class _JoystickState extends State<_Joystick> {
   int? _id;
+  Offset? _anchor;
   Offset _knob = Offset.zero;
 
   double get _maxR => widget.size / 2 - 20;
 
+  // Centro da base visual fixa no canto inferior esquerdo
+  Offset get _visualCenter => Offset(
+        widget.size / 2,
+        widget.catchmentHeight - widget.size / 2,
+      );
+
+  void _startTouch(Offset local) {
+    final vCenter = _visualCenter;
+    final dist = (local - vCenter).distance;
+    // Se tocou próximo à base visual (raio + 25px), ancora no centro visual fixo
+    if (dist <= widget.size / 2 + 25) {
+      _anchor = vCenter;
+    } else {
+      // Se tocou mais afastado (polegar ligeiramente deslocado), cria âncora dinâmica imediata
+      _anchor = local;
+    }
+    _update(local);
+  }
+
   void _update(Offset local) {
-    final c = Offset(widget.size / 2, widget.size / 2);
-    var d = local - c;
-    if (d.distance > _maxR) d = d / d.distance * _maxR;
-    // chega à velocidade máxima com ~70% do curso, com zona morta pequena
-    double ax = (d.dx / _maxR * 1.4).clamp(-1.0, 1.0).toDouble();
-    double ay = (d.dy / _maxR * 1.4).clamp(-1.0, 1.0).toDouble();
-    if (ax.abs() < 0.12) ax = 0;
-    if (ay.abs() < 0.12) ay = 0;
+    final origin = _anchor ?? _visualCenter;
+    var d = local - origin;
+    if (d.distance > _maxR) {
+      d = d / d.distance * _maxR;
+    }
+    // Resposta imediata com aceleração progressiva
+    double ax = (d.dx / _maxR * 1.35).clamp(-1.0, 1.0).toDouble();
+    double ay = (d.dy / _maxR * 1.35).clamp(-1.0, 1.0).toDouble();
+    if (ax.abs() < 0.10) ax = 0;
+    if (ay.abs() < 0.10) ay = 0;
     widget.pad.ax = ax;
     widget.pad.ay = ay;
     setState(() => _knob = d);
@@ -3042,9 +3102,12 @@ class _JoystickState extends State<_Joystick> {
 
   void _release() {
     _id = null;
+    _anchor = null;
     widget.pad.ax = 0;
     widget.pad.ay = 0;
-    if (mounted) setState(() => _knob = Offset.zero);
+    if (mounted) {
+      setState(() => _knob = Offset.zero);
+    }
   }
 
   @override
@@ -3056,13 +3119,16 @@ class _JoystickState extends State<_Joystick> {
 
   @override
   Widget build(BuildContext context) {
-    final s = widget.size;
+    final vCenter = _visualCenter;
+    final activeOrigin = _anchor ?? vCenter;
+    final knobCenter = activeOrigin + _knob;
+    final isDynamic = _anchor != null && (_anchor! - vCenter).distance > 28;
+
     return Listener(
       behavior: HitTestBehavior.opaque,
       onPointerDown: (e) {
-        if (_id != null) return;
         _id = e.pointer;
-        _update(e.localPosition);
+        _startTouch(e.localPosition);
       },
       onPointerMove: (e) {
         if (e.pointer == _id) _update(e.localPosition);
@@ -3074,22 +3140,44 @@ class _JoystickState extends State<_Joystick> {
         if (e.pointer == _id) _release();
       },
       child: SizedBox(
-        width: s,
-        height: s,
+        width: widget.catchmentWidth,
+        height: widget.catchmentHeight,
         child: Stack(
-          alignment: Alignment.center,
+          clipBehavior: Clip.none,
           children: [
-            Container(
-              width: s - 14,
-              height: s - 14,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: const Color(0x22000000),
-                border: Border.all(color: const Color(0x66FFFFFF), width: 2),
+            // Base visual fixa clássica no canto inferior esquerdo (compacta, sem invadir a quadra)
+            Positioned(
+              left: vCenter.dx - widget.size / 2 + 7,
+              top: vCenter.dy - widget.size / 2 + 7,
+              child: Container(
+                width: widget.size - 14,
+                height: widget.size - 14,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: const Color(0x22000000),
+                  border: Border.all(color: const Color(0x66FFFFFF), width: 2),
+                ),
               ),
             ),
-            Transform.translate(
-              offset: _knob,
+            // Indicador sutil de âncora dinâmica quando o toque ocorre fora da base padrão
+            if (isDynamic)
+              Positioned(
+                left: activeOrigin.dx - 36,
+                top: activeOrigin.dy - 36,
+                child: Container(
+                  width: 72,
+                  height: 72,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: const Color(0x18FFD600),
+                    border: Border.all(color: const Color(0x55FFD600), width: 1.5),
+                  ),
+                ),
+              ),
+            // Manopla analógica móvel (Knob)
+            Positioned(
+              left: knobCenter.dx - 22,
+              top: knobCenter.dy - 22,
               child: Container(
                 width: 44,
                 height: 44,
@@ -3238,8 +3326,13 @@ class _ControlsState extends State<_Controls> {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
-                    // Joystick analógico (otimizado para não cobrir a quadra nem o servidor)
-                    _Joystick(pad: pad, size: 125),
+                    // Joystick analógico inteligente (otimizado para não cobrir a quadra nem o servidor)
+                    _Joystick(
+                      pad: pad,
+                      size: 125,
+                      catchmentWidth: 220,
+                      catchmentHeight: 180,
+                    ),
                     // Pular e bater (2 botões originais rápidos e ergonômicos)
                     Row(
                       crossAxisAlignment: CrossAxisAlignment.end,

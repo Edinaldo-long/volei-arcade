@@ -258,6 +258,60 @@ void main() {
       expect(pad.jump, isTrue);
     });
 
+    test('Pad handles virtual joystick axes and deadzone cleanly', () {
+      final pad = Pad();
+      // Dentro da zona morta (< 0.08)
+      pad.ax = 0.05;
+      pad.ay = -0.06;
+      expect(pad.dx, equals(0.0));
+      expect(pad.dy, equals(0.0));
+
+      // Fora da zona morta (> 0.08)
+      pad.ax = 0.85;
+      pad.ay = -0.65;
+      expect(pad.dx, closeTo(0.85, 0.001));
+      expect(pad.dy, closeTo(-0.65, 0.001));
+
+      // Resetando analógico
+      pad.ax = 0;
+      pad.ay = 0;
+      expect(pad.dx, equals(0.0));
+      expect(pad.dy, equals(0.0));
+    });
+
+    test('Human player maintains control stickiness during active joystick steering', () {
+      final game = VolleyGame();
+      game.startMatch(0);
+      final p0 = game.players[0];
+      final p1 = game.players[1];
+      game.controlled[0] = p0;
+
+      // Human jogador 0 movendo o analógico ativamente
+      game.pads[0].ax = 1.0;
+      expect(game.pads[0].dx, equals(1.0));
+
+      // Simula bola vindo em posição onde o parceiro (p1) estaria ligeiramente mais próximo
+      p0.x = 150;
+      p0.y = 200;
+      p1.x = 350;
+      p1.y = 200;
+
+      // Chama a seleção de papéis interna através do update de fase
+      game.phase = Phase.rally;
+      game.ball.x = 280;
+      game.ball.y = 200;
+      game.ball.z = 60;
+      game.ball.vz = -100;
+      game.touches[0] = 0;
+      game.lastTeam = 1;
+
+      // Atualiza o jogo: como p0 está ativamente comandado via joystick,
+      // a histerese de 220px mantém p0 controlado sem travar ou trocar sozinho
+      game.update(0.016);
+      expect(game.controlled[0], equals(p0));
+      expect(p0.human, isTrue);
+    });
+
     test('Player prevents kangaroo bouncing when jump button is held', () {
       final player = Player(0, 0, 100, 200);
       expect(player.onGround, isTrue);

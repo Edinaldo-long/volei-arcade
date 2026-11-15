@@ -14,6 +14,19 @@ import java.io.File
 class MainActivity : FlutterActivity() {
     private val CHANNEL = "com.edinaldo.volei/installer"
 
+    override fun onWindowFocusChanged(hasFocus: Boolean) {
+        super.onWindowFocusChanged(hasFocus)
+        if (hasFocus && Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            val h = window.decorView.height
+            val w = window.decorView.width
+            if (h > 0 && w > 0) {
+                // Protege a área do joystick virtual no canto inferior esquerdo dos gestos do sistema Android (ex: voltar / navegação por gestos)
+                val exclusionRect = android.graphics.Rect(0, h / 2, w / 3, h)
+                window.decorView.systemGestureExclusionRects = listOf(exclusionRect)
+            }
+        }
+    }
+
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
 
