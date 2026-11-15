@@ -2438,7 +2438,7 @@ class _MenuState extends State<_Menu> {
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
-                        'Nova versão v pronta!',
+                        'Nova versão v${_updateInfo!.latestVersion} pronta!',
                         style: const TextStyle(
                           color: Colors.white,
                           fontWeight: FontWeight.bold,

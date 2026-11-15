@@ -69,10 +69,14 @@ class _UpdateDialogState extends State<UpdateDialog> with WidgetsBindingObserver
 
   Future<void> _checkInitialState() async {
     final can = await AutoUpdateService.canRequestPackageInstalls();
-    final isDownloaded = await AutoUpdateService.isApkDownloaded();
+    final isDownloaded = await AutoUpdateService.isApkDownloaded(
+      version: widget.updateInfo.latestVersion,
+    );
     File? file;
     if (isDownloaded) {
-      file = await AutoUpdateService.getTargetApkFile();
+      file = await AutoUpdateService.getTargetApkFile(
+        widget.updateInfo.latestVersion,
+      );
     }
     if (mounted) {
       setState(() {
@@ -81,14 +85,17 @@ class _UpdateDialogState extends State<UpdateDialog> with WidgetsBindingObserver
         _apkFile = file;
         if (isDownloaded) {
           _progress = 1.0;
-          _status = 'Arquivo APK pronto no dispositivo.';
+          _status = 'Arquivo APK da v${widget.updateInfo.latestVersion} pronto no dispositivo.';
         }
       });
     }
   }
 
   Future<void> _triggerInstall() async {
-    final file = _apkFile ?? await AutoUpdateService.getTargetApkFile();
+    final file = _apkFile ??
+        await AutoUpdateService.getTargetApkFile(
+          widget.updateInfo.latestVersion,
+        );
     if (!await file.exists()) {
       setState(() {
         _downloadCompleted = false;
@@ -136,13 +143,9 @@ class _UpdateDialogState extends State<UpdateDialog> with WidgetsBindingObserver
     });
 
     try {
-      final file = await AutoUpdateService.getTargetApkFile();
-      if (await file.exists()) {
-        await file.delete();
-      }
-
-      await AutoUpdateService.downloadAndInstall(
+      final file = await AutoUpdateService.downloadApk(
         downloadUrl: widget.updateInfo.downloadUrl,
+        version: widget.updateInfo.latestVersion,
         onProgress: (p, rec, total) {
           if (mounted) {
             setState(() {

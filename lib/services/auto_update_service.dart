@@ -165,22 +165,48 @@ class AutoUpdateService {
     }
   }
 
-  /// Obtém a referência do arquivo APK de destino
-  static Future<File> getTargetApkFile() async {
-    Directory dir;
+  /// Obtém a referência do arquivo APK de destino, versionado para evitar conflito de cache
+  static Future<File> getTargetApkFile([String? version]) async {
+    // Usa sempre o diretório de cache interno (context.cacheDir), mapeado em file_paths.xml como <cache-path>.
+    // No Android 11+ (especialmente Samsung One UI), armazenar o APK em getExternalStorageDirectory()
+    // (/storage/emulated/0/Android/data/...) causa bloqueio de segurança do Scoped Storage pelo instalador do sistema.
+    final dir = await getTemporaryDirectory();
+    final v = (version != null && version.isNotEmpty)
+        ? '_v${cleanVersion(version)}'
+        : '';
+    return File('${dir.path}/volei_update$v.apk');
+  }
+
+  /// Limpa arquivos APK de atualizações antigas para liberar espaço em disco
+  static Future<void> cleanupOldApks({String? keepVersion}) async {
     try {
-      final ext = await getExternalStorageDirectory();
-      dir = ext ?? await getTemporaryDirectory();
-    } catch (_) {
-      dir = await getTemporaryDirectory();
-    }
-    return File('${dir.path}/app-release.apk');
+      final dir = await getTemporaryDirectory();
+      final keepName = (keepVersion != null && keepVersion.isNotEmpty)
+          ? 'volei_update_v${cleanVersion(keepVersion)}.apk'
+          : null;
+      final entities = dir.listSync();
+      for (final entity in entities) {
+        if (entity is File &&
+            (entity.path.endsWith('.apk') ||
+                entity.path.contains('app-release.apk') ||
+                entity.path.contains('volei_update'))) {
+          if (keepName == null || !entity.path.endsWith(keepName)) {
+            try {
+              entity.deleteSync();
+            } catch (_) {}
+          }
+        }
+      }
+    } catch (_) {}
   }
 
   /// Verifica se o APK já foi baixado com sucesso
-  static Future<bool> isApkDownloaded({int minBytes = 10000000}) async {
+  static Future<bool> isApkDownloaded({
+    String? version,
+    int minBytes = 15000000,
+  }) async {
     try {
-      final file = await getTargetApkFile();
+      final file = await getTargetApkFile(version);
       if (await file.exists()) {
         final length = await file.length();
         return length >= minBytes;
@@ -201,9 +227,10 @@ class AutoUpdateService {
     });
   }
 
-  /// Baixa o APK de release com progresso e aciona o instalador nativo
-  static Future<void> downloadAndInstall({
+  /// Baixa o APK de release com progresso e retorna a referência do arquivo baixado
+  static Future<File> downloadApk({
     required String downloadUrl,
+    String? version,
     required void Function(double progress, int receivedBytes, int totalBytes)
         onProgress,
     required void Function(String status) onStatus,
@@ -213,6 +240,7 @@ class AutoUpdateService {
     }
 
     onStatus('Iniciando download do pacote...');
+    await cleanupOldApks(keepVersion: version);
     final client = http.Client();
     try {
       final request = http.Request('GET', Uri.parse(downloadUrl));
@@ -225,7 +253,7 @@ class AutoUpdateService {
       final totalBytes = response.contentLength ?? 0;
       var receivedBytes = 0;
 
-      final apkFile = await getTargetApkFile();
+      final apkFile = await getTargetApkFile(version);
       if (await apkFile.exists()) {
         await apkFile.delete();
       }
@@ -241,18 +269,35 @@ class AutoUpdateService {
       await sink.flush();
       await sink.close();
 
-      onStatus('Download concluído!');
-
-      final canInstall = await canRequestPackageInstalls();
-      if (!canInstall) {
-        onStatus('Permissão necessária nas configurações.');
-        await openInstallPermissionSettings();
-      } else {
-        onStatus('Abrindo instalador do Android...');
-        await installApkFile(apkFile);
-      }
+      onStatus('Download concluído com sucesso!');
+      return apkFile;
     } finally {
       client.close();
+    }
+  }
+
+  /// Baixa o APK de release e em seguida aciona a instalação
+  static Future<void> downloadAndInstall({
+    required String downloadUrl,
+    String? version,
+    required void Function(double progress, int receivedBytes, int totalBytes)
+        onProgress,
+    required void Function(String status) onStatus,
+  }) async {
+    final apkFile = await downloadApk(
+      downloadUrl: downloadUrl,
+      version: version,
+      onProgress: onProgress,
+      onStatus: onStatus,
+    );
+
+    final canInstall = await canRequestPackageInstalls();
+    if (!canInstall) {
+      onStatus('Permissão necessária nas configurações.');
+      await openInstallPermissionSettings();
+    } else {
+      onStatus('Abrindo instalador do Android...');
+      await installApkFile(apkFile);
     }
   }
 }

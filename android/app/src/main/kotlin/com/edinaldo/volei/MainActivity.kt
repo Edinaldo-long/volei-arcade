@@ -92,18 +92,36 @@ class MainActivity : FlutterActivity() {
                             setDataAndType(apkUri, "application/vnd.android.package-archive")
                             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                            addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
-                            putExtra(Intent.EXTRA_NOT_UNKNOWN_SOURCE, true)
                         }
 
-                        val resInfoList = packageManager.queryIntentActivities(
-                            intent,
-                            PackageManager.MATCH_DEFAULT_ONLY
+                        // Concede permissão explícita aos instaladores de pacote do Android e da Samsung
+                        val installerPackages = listOf(
+                            "com.google.android.packageinstaller",
+                            "com.android.packageinstaller",
+                            "com.samsung.android.packageinstaller"
                         )
-                        for (resolveInfo in resInfoList) {
-                            val pkg = resolveInfo.activityInfo.packageName
-                            grantUriPermission(pkg, apkUri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                        for (pkg in installerPackages) {
+                            try {
+                                grantUriPermission(pkg, apkUri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                            } catch (_: Exception) {}
                         }
+
+                        // Consulta todas as atividades do sistema que abrem pacotes APK
+                        try {
+                            val resInfoList = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                                packageManager.queryIntentActivities(
+                                    intent,
+                                    PackageManager.ResolveInfoFlags.of(0)
+                                )
+                            } else {
+                                @Suppress("DEPRECATION")
+                                packageManager.queryIntentActivities(intent, 0)
+                            }
+                            for (resolveInfo in resInfoList) {
+                                val pkg = resolveInfo.activityInfo.packageName
+                                grantUriPermission(pkg, apkUri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                            }
+                        } catch (_: Exception) {}
 
                         startActivity(intent)
                         result.success(true)
