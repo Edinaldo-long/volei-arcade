@@ -2634,21 +2634,24 @@ class _Result extends StatelessWidget {
     if (tournament && w == 0) {
       final winTeam = game.teams[w];
       final oppTeam = game.teams[1 - w];
-      return Center(
-        child: SingleChildScrollView(
-          child: TournamentCelebrationWidget(
-            championCountry: winTeam.name,
-            shirtColor: winTeam.color,
-            trimColor: winTeam.trim,
-            rivalCountry: oppTeam.name,
-            championScore: game.score[w],
-            rivalScore: game.score[1 - w],
-            isGrandChampion: champion,
-            hasNextRound: more,
-            onNextRound: game.nextRound,
-            onPlayAgain: game.rematch,
-            onMenu: game.toMenu,
-            isBeach: game.isBeach,
+      return SafeArea(
+        child: Center(
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            child: TournamentCelebrationWidget(
+              championCountry: winTeam.name,
+              shirtColor: winTeam.color,
+              trimColor: winTeam.trim,
+              rivalCountry: oppTeam.name,
+              championScore: game.score[w],
+              rivalScore: game.score[1 - w],
+              isGrandChampion: champion,
+              hasNextRound: more,
+              onNextRound: game.nextRound,
+              onPlayAgain: game.rematch,
+              onMenu: game.toMenu,
+              isBeach: game.isBeach,
+            ),
           ),
         ),
       );
@@ -2901,7 +2904,7 @@ class _PadButtonState extends State<_PadButton> {
 class _Joystick extends StatefulWidget {
   final Pad pad;
   final double size;
-  const _Joystick({required this.pad, this.size = 170});
+  const _Joystick({required this.pad, this.size = 125});
 
   @override
   State<_Joystick> createState() => _JoystickState();
@@ -2911,7 +2914,7 @@ class _JoystickState extends State<_Joystick> {
   int? _id;
   Offset _knob = Offset.zero;
 
-  double get _maxR => widget.size / 2 - 28;
+  double get _maxR => widget.size / 2 - 20;
 
   void _update(Offset local) {
     final c = Offset(widget.size / 2, widget.size / 2);
@@ -2967,23 +2970,26 @@ class _JoystickState extends State<_Joystick> {
           alignment: Alignment.center,
           children: [
             Container(
-              width: s - 20,
-              height: s - 20,
+              width: s - 14,
+              height: s - 14,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: const Color(0x66000000),
-                border: Border.all(color: Colors.white54, width: 3),
+                color: const Color(0x22000000),
+                border: Border.all(color: const Color(0x66FFFFFF), width: 2),
               ),
             ),
             Transform.translate(
               offset: _knob,
               child: Container(
-                width: 62,
-                height: 62,
+                width: 44,
+                height: 44,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: const Color(0xCCFFFFFF),
-                  border: Border.all(color: Colors.black, width: 3),
+                  color: const Color(0x99FFFFFF),
+                  border: Border.all(color: const Color(0xDD000000), width: 2.5),
+                  boxShadow: const [
+                    BoxShadow(color: Colors.black38, blurRadius: 4, offset: Offset(1, 1)),
+                  ],
                 ),
               ),
             ),
@@ -3122,8 +3128,8 @@ class _ControlsState extends State<_Controls> {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
-                    // Joystick analógico
-                    _Joystick(pad: pad, size: 170),
+                    // Joystick analógico (otimizado para não cobrir a quadra nem o servidor)
+                    _Joystick(pad: pad, size: 125),
                     // Pular e bater (2 botões originais rápidos e ergonômicos)
                     Row(
                       crossAxisAlignment: CrossAxisAlignment.end,

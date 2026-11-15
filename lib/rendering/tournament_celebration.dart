@@ -120,6 +120,218 @@ class _TournamentCelebrationWidgetState extends State<TournamentCelebrationWidge
         ? '${widget.championCountry} CONQUISTOU O TÍTULO MÁXIMO!'
         : '${widget.championCountry} AVANÇA PARA A PRÓXIMA FASE!';
 
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isLandscape = constraints.maxHeight < 520;
+        if (isLandscape) {
+          return _buildLandscape(context, title, subtitle);
+        } else {
+          return _buildPortrait(context, title, subtitle);
+        }
+      },
+    );
+  }
+
+  Widget _buildLandscape(BuildContext context, String title, String subtitle) {
+    return Container(
+      constraints: const BoxConstraints(maxWidth: 630, maxHeight: 310),
+      margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: const Color(0xEE090D2A),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFFFD700), width: 2.5),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x66FFD700),
+            blurRadius: 24,
+            spreadRadius: 2,
+          ),
+          BoxShadow(
+            color: Colors.black87,
+            blurRadius: 14,
+            offset: Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // LADO ESQUERDO: Título, Bandeira, Placar e Botões de Ação
+          Expanded(
+            flex: 11,
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                // 1. TÍTULO E SUBTÍTULO
+                Column(
+                  children: [
+                    Text(
+                      title,
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        color: Color(0xFFFFD700),
+                        fontSize: 16,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: 0.6,
+                        shadows: [
+                          Shadow(offset: Offset(1.5, 1.5), color: Colors.black, blurRadius: 3),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      subtitle,
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
+
+                // 2. BANDEIRA ONDULANTE
+                AnimatedBuilder(
+                  animation: _controller,
+                  builder: (context, child) {
+                    final wave = math.sin(_controller.value * 2 * math.pi * 2) * 2.5;
+                    final tilt = math.sin(_controller.value * 2 * math.pi) * 0.03;
+                    return Transform.translate(
+                      offset: Offset(0, wave),
+                      child: Transform.rotate(
+                        angle: tilt,
+                        child: Container(
+                          decoration: BoxDecoration(
+                            boxShadow: const [
+                              BoxShadow(
+                                color: Color(0x77FFD700),
+                                blurRadius: 10,
+                                spreadRadius: 1,
+                              ),
+                            ],
+                            borderRadius: BorderRadius.circular(5),
+                          ),
+                          child: FlagRenderer.flagWidget(
+                            widget.championCountry,
+                            width: 58,
+                            height: 38,
+                            borderRadius: 4.0,
+                            border: true,
+                          ),
+                        ),
+                      ),
+                    );
+                  },
+                ),
+
+                // 3. PLACAR
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: const Color(0x33000000),
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(color: Colors.white24),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      FlagRenderer.flagWidget(widget.championCountry, width: 20, height: 13),
+                      const SizedBox(width: 6),
+                      Text(
+                        '${widget.championCountry} ${widget.championScore}  ×  ${widget.rivalScore} ${widget.rivalCountry}',
+                        style: const TextStyle(
+                          color: Color(0xFFFFD700),
+                          fontSize: 13,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      FlagRenderer.flagWidget(widget.rivalCountry, width: 20, height: 13),
+                    ],
+                  ),
+                ),
+
+                // 4. BOTÕES DE AÇÃO
+                Column(
+                  children: [
+                    if (widget.hasNextRound)
+                      FilledButton.icon(
+                        style: FilledButton.styleFrom(
+                          backgroundColor: const Color(0xFFFFC107),
+                          foregroundColor: Colors.black,
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+                          minimumSize: const Size(double.infinity, 36),
+                        ),
+                        onPressed: widget.onNextRound,
+                        icon: const Icon(Icons.arrow_forward, size: 17),
+                        label: const Text(
+                          'PRÓXIMA PARTIDA',
+                          style: TextStyle(fontWeight: FontWeight.w900, fontSize: 12),
+                        ),
+                      )
+                    else
+                      FilledButton.icon(
+                        style: FilledButton.styleFrom(
+                          backgroundColor: const Color(0xFFFFD700),
+                          foregroundColor: Colors.black,
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+                          minimumSize: const Size(double.infinity, 36),
+                        ),
+                        onPressed: widget.onPlayAgain,
+                        icon: const Icon(Icons.emoji_events, size: 17),
+                        label: const Text(
+                          'JOGAR NOVAMENTE',
+                          style: TextStyle(fontWeight: FontWeight.w900, fontSize: 12),
+                        ),
+                      ),
+                    const SizedBox(height: 3),
+                    TextButton.icon(
+                      style: TextButton.styleFrom(
+                        foregroundColor: Colors.white70,
+                        padding: const EdgeInsets.symmetric(vertical: 4),
+                        visualDensity: VisualDensity.compact,
+                      ),
+                      onPressed: widget.onMenu,
+                      icon: const Icon(Icons.home, size: 16),
+                      label: const Text('MENU PRINCIPAL', style: TextStyle(fontSize: 11)),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 14),
+
+          // LADO DIREITO: Animação Completa dos Atletas e Pódio
+          Expanded(
+            flex: 12,
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(10),
+              child: AnimatedBuilder(
+                animation: _controller,
+                builder: (context, _) {
+                  return CustomPaint(
+                    painter: _CelebrationCanvasPainter(
+                      progress: _controller.value,
+                      confettiList: _confettiList,
+                      shirtColor: widget.shirtColor,
+                      trimColor: widget.trimColor,
+                      championCountry: widget.championCountry,
+                      isBeach: widget.isBeach,
+                    ),
+                  );
+                },
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPortrait(BuildContext context, String title, String subtitle) {
     return Container(
       constraints: const BoxConstraints(maxWidth: 460),
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
