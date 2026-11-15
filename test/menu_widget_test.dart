@@ -35,6 +35,10 @@ void main() {
     // Toggle music
     game.toggleMusic();
     await tester.pump();
+
+    // Toggle vibration
+    game.toggleVibration();
+    await tester.pump();
   });
 
   testWidgets('Menu has only Torneio and Amistoso modes, without 2P, training or coach', (tester) async {

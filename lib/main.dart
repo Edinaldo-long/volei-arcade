@@ -27,6 +27,7 @@ import 'rendering/court_renderer.dart';
 import 'rendering/flag_renderer.dart';
 import 'rendering/tournament_celebration.dart';
 import 'services/auto_update_service.dart';
+import 'services/haptic_service.dart';
 import 'services/update_dialog.dart';
 
 Future<void> main() async {
@@ -230,6 +231,8 @@ class VolleyGame extends FlameGame with KeyboardEvents {
   double serveTossTimer = 0.0;
   bool musicEnabled = true;
   bool sfxEnabled = true;
+  bool get vibrationEnabled => HapticService.isVibrationEnabled;
+  set vibrationEnabled(bool val) => HapticService.setVibrationEnabled(val);
   int consecutivePlayerPoints = 0;
 
   int playerTeamIndex = 0; // 0 = BRASIL
@@ -360,6 +363,11 @@ class VolleyGame extends FlameGame with KeyboardEvents {
     sfxEnabled = !sfxEnabled;
     ArcadeAudio.setSfxEnabled(sfxEnabled);
     _msg(sfxEnabled ? 'EFEITOS SONOROS: LIGADOS 🔊' : 'EFEITOS SONOROS: MUDO 🔇', 1.2);
+  }
+
+  void toggleVibration() {
+    final state = HapticService.toggleVibration();
+    _msg(state ? 'VIBRAÇÃO: ATIVADA 📳' : 'VIBRAÇÃO: DESLIGADA 📴', 1.2);
   }
 
   void toggleNextMusicTrack() {
@@ -974,6 +982,9 @@ class VolleyGame extends FlameGame with KeyboardEvents {
       );
       outgoing = true;
       ArcadeAudio.playSpike(perfect: eval.isPerfect);
+      if (_isHumanTeam(t)) {
+        HapticService.spikeImpact(perfect: eval.isPerfect);
+      }
       if (_isHumanTeam(t) && eval.isPerfect) {
         crowd = 1.8;
         ArcadeAudio.playCrowdCheer(big: false);
@@ -1119,6 +1130,9 @@ class VolleyGame extends FlameGame with KeyboardEvents {
       );
 
       ArcadeAudio.playSpike(perfect: eval.isPerfect);
+      if (_isHumanTeam(t)) {
+        HapticService.spikeImpact(perfect: eval.isPerfect);
+      }
       if (_isHumanTeam(t) && eval.isPerfect) {
         crowd = 2.0;
         ArcadeAudio.playCrowdCheer(big: true);
@@ -1295,6 +1309,7 @@ class VolleyGame extends FlameGame with KeyboardEvents {
       shake = math.max(shake, 7);
       _msg('MONSTER BLOCK! 🧱', 1.0);
       ArcadeAudio.playBlock();
+      HapticService.monsterBlockImpact();
       if (_isHumanTeam(p.team)) {
         crowd = 2.0;
         ArcadeAudio.playCrowdCheer(big: true);
@@ -2559,7 +2574,7 @@ class _MenuState extends State<_Menu> {
             ),
             const SizedBox(height: 10),
 
-            // Opções de Som e Cenário
+            // Opções de Som, Vibração e Cenário
             Row(
               children: [
                 Expanded(
@@ -2568,28 +2583,44 @@ class _MenuState extends State<_Menu> {
                     style: FilledButton.styleFrom(
                       backgroundColor: g.sfxEnabled ? const Color(0xFF2E7D32) : const Color(0xFF424242),
                       foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+                      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 10),
                     ),
-                    icon: Icon(g.sfxEnabled ? Icons.volume_up : Icons.volume_off, size: 20),
+                    icon: Icon(g.sfxEnabled ? Icons.volume_up : Icons.volume_off, size: 18),
                     label: Text(
                       g.sfxEnabled ? 'SOM: ON 🔊' : 'SOM: OFF 🔇',
-                      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                      style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
                     ),
                   ),
                 ),
-                const SizedBox(width: 10),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: FilledButton.tonalIcon(
+                    onPressed: () => setState(() => g.toggleVibration()),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: g.vibrationEnabled ? const Color(0xFF6A1B9A) : const Color(0xFF424242),
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 10),
+                    ),
+                    icon: Icon(g.vibrationEnabled ? Icons.vibration : Icons.smartphone, size: 18),
+                    label: Text(
+                      g.vibrationEnabled ? 'VIBRAÇÃO: ON 📳' : 'VIBRAÇÃO: OFF 📴',
+                      style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
                 Expanded(
                   child: FilledButton.tonalIcon(
                     onPressed: () => setState(() => g.toggleArena()),
                     style: FilledButton.styleFrom(
                       backgroundColor: g.isBeach ? const Color(0xFFF57F17) : const Color(0xFF1565C0),
                       foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+                      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 10),
                     ),
-                    icon: Icon(g.isBeach ? Icons.beach_access : Icons.stadium, size: 20),
+                    icon: Icon(g.isBeach ? Icons.beach_access : Icons.stadium, size: 18),
                     label: Text(
                       g.isBeach ? 'PRAIA 🏖️' : 'GINÁSIO 🏢',
-                      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                      style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
                     ),
                   ),
                 ),
@@ -2916,14 +2947,32 @@ class _PauseMenuState extends State<_PauseMenu> {
             label: const Text('CONTINUAR'),
           ),
           const SizedBox(height: 10),
-          FilledButton.tonalIcon(
-            onPressed: () {
-              setState(() {
-                g.toggleSfx();
-              });
-            },
-            icon: Icon(g.sfxEnabled ? Icons.volume_up : Icons.volume_off),
-            label: Text(g.sfxEnabled ? 'SOM: LIGADO 🔊' : 'SOM: MUDO 🔇'),
+          Row(
+            children: [
+              Expanded(
+                child: FilledButton.tonalIcon(
+                  onPressed: () {
+                    setState(() {
+                      g.toggleSfx();
+                    });
+                  },
+                  icon: Icon(g.sfxEnabled ? Icons.volume_up : Icons.volume_off),
+                  label: Text(g.sfxEnabled ? 'SOM: ON 🔊' : 'SOM: OFF 🔇'),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: FilledButton.tonalIcon(
+                  onPressed: () {
+                    setState(() {
+                      g.toggleVibration();
+                    });
+                  },
+                  icon: Icon(g.vibrationEnabled ? Icons.vibration : Icons.smartphone),
+                  label: Text(g.vibrationEnabled ? 'VIBRAÇÃO: ON 📳' : 'VIBRAÇÃO: OFF 📴'),
+                ),
+              ),
+            ],
           ),
           const SizedBox(height: 10),
           FilledButton.tonalIcon(
