@@ -173,12 +173,13 @@ class MainActivity : FlutterActivity() {
                             val audioAttributes = AudioAttributes.Builder()
                                 .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
                                 .setUsage(AudioAttributes.USAGE_GAME)
+                                .setFlags(AudioAttributes.FLAG_AUDIBILITY_ENFORCED)
                                 .build()
 
                             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                                 val effect = VibrationEffect.createOneShot(
                                     duration,
-                                    if (amplitude in 1..255) amplitude else VibrationEffect.DEFAULT_AMPLITUDE
+                                    if (amplitude in 1..255) amplitude else 255
                                 )
                                 vibrator.vibrate(effect, audioAttributes)
                             } else {
@@ -194,7 +195,7 @@ class MainActivity : FlutterActivity() {
                     }
                 }
                 "vibrateWaveform" -> {
-                    val timingsList = call.argument<List<Int>>("timings") ?: listOf(0, 70, 50, 80)
+                    val timingsList = call.argument<List<Int>>("timings") ?: listOf(0, 130, 45, 170)
                     val timings = timingsList.map { it.toLong() }.toLongArray()
                     val repeat = call.argument<Int>("repeat") ?: -1
                     try {
@@ -210,10 +211,13 @@ class MainActivity : FlutterActivity() {
                             val audioAttributes = AudioAttributes.Builder()
                                 .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
                                 .setUsage(AudioAttributes.USAGE_GAME)
+                                .setFlags(AudioAttributes.FLAG_AUDIBILITY_ENFORCED)
                                 .build()
 
                             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                                val effect = VibrationEffect.createWaveform(timings, repeat)
+                                // Força amplitude máxima (255) em cada pulso ativo para vibração pesada
+                                val amps = IntArray(timings.size) { i -> if (i % 2 == 1) 255 else 0 }
+                                val effect = VibrationEffect.createWaveform(timings, amps, repeat)
                                 vibrator.vibrate(effect, audioAttributes)
                             } else {
                                 @Suppress("DEPRECATION")

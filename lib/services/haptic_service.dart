@@ -22,11 +22,11 @@ class HapticService {
   }
 
   /// Alterna o estado de vibração e retorna o novo estado.
-  /// Se ligado, dispara um pulso de teste imediato para confirmar ao jogador que a vibração está funcionando.
+  /// Se ligado, dispara um pulso de teste forte e marcante para confirmar ao jogador que a vibração está funcionando.
   static bool toggleVibration() {
     _vibrationEnabled = !_vibrationEnabled;
     if (_vibrationEnabled) {
-      _vibrateNative(durationMs: 50, amplitude: 220);
+      _vibrateNative(durationMs: 140, amplitude: 255);
     }
     return _vibrationEnabled;
   }
@@ -91,28 +91,28 @@ class HapticService {
   }
 
   /// Impacto tátil para cortada potente / super cortada.
-  /// Dispara um pulso rápido e marcante (~45ms a ~65ms).
+  /// Dispara um pulso forte e encorpado (~140ms para cortada normal, ~220ms para perfeita) com força máxima (255).
   static Future<void> spikeImpact({bool perfect = false}) async {
     if (!_vibrationEnabled || _isTestEnvironment()) return;
     await _vibrateNative(
-      durationMs: perfect ? 65 : 45,
-      amplitude: perfect ? 255 : 210,
+      durationMs: perfect ? 220 : 140,
+      amplitude: 255,
     );
   }
 
   /// Impacto tátil para Monster Block (bloqueio na rede).
-  /// Dispara um pulso forte duplo (~70ms impacto, 45ms pausa, 80ms reverberação),
-  /// sincronizado com o som e tremor de tela.
+  /// Dispara um pulso duplo pesado (~140ms primeiro impacto, 45ms pausa, 180ms pancada secundária),
+  /// com vibração em força máxima (255), sincronizado com o som e tremor de tela.
   static Future<void> monsterBlockImpact() async {
     if (!_vibrationEnabled || _isTestEnvironment()) return;
     await _vibrateWaveformNative(
-      timings: [0, 70, 45, 80],
+      timings: [0, 140, 45, 180],
     );
   }
 
-  /// Feedback sutil de toque para confirmação em botões e menus
+  /// Feedback de toque para confirmação em botões e menus
   static Future<void> selectionFeedback() async {
     if (!_vibrationEnabled || _isTestEnvironment()) return;
-    await _vibrateNative(durationMs: 25, amplitude: 160);
+    await _vibrateNative(durationMs: 50, amplitude: 220);
   }
 }
