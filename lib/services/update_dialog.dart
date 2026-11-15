@@ -4,14 +4,26 @@ import 'auto_update_service.dart';
 
 class UpdateDialog extends StatefulWidget {
   final UpdateInfo updateInfo;
+  final bool autoStart;
 
-  const UpdateDialog({super.key, required this.updateInfo});
+  const UpdateDialog({
+    super.key,
+    required this.updateInfo,
+    this.autoStart = true,
+  });
 
-  static Future<void> show(BuildContext context, UpdateInfo info) {
+  static Future<void> show(
+    BuildContext context,
+    UpdateInfo info, {
+    bool autoStart = true,
+  }) {
     return showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (context) => UpdateDialog(updateInfo: info),
+      builder: (context) => UpdateDialog(
+        updateInfo: info,
+        autoStart: autoStart,
+      ),
     );
   }
 
@@ -85,9 +97,19 @@ class _UpdateDialogState extends State<UpdateDialog> with WidgetsBindingObserver
         _apkFile = file;
         if (isDownloaded) {
           _progress = 1.0;
-          _status = 'Arquivo APK da v${widget.updateInfo.latestVersion} pronto no dispositivo.';
+          _status = 'Pacote pronto. Abrindo instalador do Android...';
         }
       });
+
+      // Se autoStart estiver ativo, inicia o download ou instalação imediatamente
+      // sem o usuário precisar clicar em nenhum botão!
+      if (widget.autoStart) {
+        if (isDownloaded && file != null && can) {
+          _triggerInstall();
+        } else if (!isDownloaded) {
+          _startDownload();
+        }
+      }
     }
   }
 
@@ -219,11 +241,11 @@ class _UpdateDialogState extends State<UpdateDialog> with WidgetsBindingObserver
                       Icon(Icons.system_update, color: Color(0xFFFFD600), size: 24),
                       SizedBox(width: 8),
                       Text(
-                        'ATUALIZAÇÃO',
+                        'ATUALIZAÇÃO AUTOMÁTICA',
                         style: TextStyle(
                           color: Color(0xFFFFD600),
                           fontWeight: FontWeight.w900,
-                          fontSize: 16,
+                          fontSize: 15,
                           letterSpacing: 1.1,
                         ),
                       ),
@@ -429,21 +451,38 @@ class _UpdateDialogState extends State<UpdateDialog> with WidgetsBindingObserver
                 ),
               ],
 
-              const SizedBox(height: 14),
+              const SizedBox(height: 10),
+
+              // Botão de contingência caso o instalador do sistema falhe
+              Center(
+                child: TextButton.icon(
+                  onPressed: () => AutoUpdateService.openBrowserUrl(
+                    widget.updateInfo.downloadUrl.isNotEmpty
+                        ? widget.updateInfo.downloadUrl
+                        : 'https://github.com/Edinaldo-long/volei-arcade/releases/latest',
+                  ),
+                  icon: const Icon(Icons.open_in_browser, size: 16, color: Colors.amberAccent),
+                  label: const Text(
+                    'Baixar APK direto pelo navegador 🌐',
+                    style: TextStyle(color: Colors.amberAccent, fontSize: 11),
+                  ),
+                ),
+              ),
+
+              const SizedBox(height: 8),
 
               // Botões inferiores
               Row(
-                mainAxisAlignment: MainAxisAlignment.end,
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   TextButton(
                     onPressed: () => Navigator.of(context).pop(),
                     child: Text(
-                      _downloading ? 'CANCELAR' : 'FECHAR',
-                      style: const TextStyle(color: Colors.white60, fontSize: 12),
+                      _downloading ? 'CANCELAR DOWNLOAD' : 'JOGAR SEM ATUALIZAR',
+                      style: const TextStyle(color: Colors.white60, fontSize: 11),
                     ),
                   ),
                   if (!_downloading && !_downloadCompleted) ...[
-                    const SizedBox(width: 8),
                     FilledButton.icon(
                       style: FilledButton.styleFrom(
                         backgroundColor: const Color(0xFFFFD600),

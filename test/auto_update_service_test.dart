@@ -56,5 +56,20 @@ void main() {
       expect(info.apkSize, 52000000);
       expect(info.releaseNotes, 'Novos recursos e correções');
     });
+
+    test('getTargetApkFile produces versioned filename in cache directory', () async {
+      final fileWithVer = await AutoUpdateService.getTargetApkFile('1.0.16');
+      expect(fileWithVer.path, contains('volei_update_v1.0.16.apk'));
+
+      final fileClean = await AutoUpdateService.getTargetApkFile('v2.0.0');
+      expect(fileClean.path, contains('volei_update_v2.0.0.apk'));
+    });
+
+    test('openBrowserUrl runs safely without throwing on non-Android platform', () async {
+      await expectLater(
+        AutoUpdateService.openBrowserUrl('https://github.com'),
+        completes,
+      );
+    });
   });
 }

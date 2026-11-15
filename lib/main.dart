@@ -2229,6 +2229,12 @@ class _MenuState extends State<_Menu> {
         setState(() {
           _updateInfo = info;
         });
+        // Atualização 100% automática ao abrir o jogo: abre o instalador sem exigir nenhum clique manual
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) {
+            UpdateDialog.show(context, info, autoStart: true);
+          }
+        });
       }
     });
   }

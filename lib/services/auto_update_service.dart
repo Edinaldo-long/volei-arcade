@@ -170,7 +170,12 @@ class AutoUpdateService {
     // Usa sempre o diretório de cache interno (context.cacheDir), mapeado em file_paths.xml como <cache-path>.
     // No Android 11+ (especialmente Samsung One UI), armazenar o APK em getExternalStorageDirectory()
     // (/storage/emulated/0/Android/data/...) causa bloqueio de segurança do Scoped Storage pelo instalador do sistema.
-    final dir = await getTemporaryDirectory();
+    Directory dir;
+    try {
+      dir = await getTemporaryDirectory();
+    } catch (_) {
+      dir = Directory.systemTemp;
+    }
     final v = (version != null && version.isNotEmpty)
         ? '_v${cleanVersion(version)}'
         : '';
@@ -180,7 +185,12 @@ class AutoUpdateService {
   /// Limpa arquivos APK de atualizações antigas para liberar espaço em disco
   static Future<void> cleanupOldApks({String? keepVersion}) async {
     try {
-      final dir = await getTemporaryDirectory();
+      Directory dir;
+      try {
+        dir = await getTemporaryDirectory();
+      } catch (_) {
+        dir = Directory.systemTemp;
+      }
       final keepName = (keepVersion != null && keepVersion.isNotEmpty)
           ? 'volei_update_v${cleanVersion(keepVersion)}.apk'
           : null;
@@ -298,6 +308,16 @@ class AutoUpdateService {
     } else {
       onStatus('Abrindo instalador do Android...');
       await installApkFile(apkFile);
+    }
+  }
+
+  /// Abre uma URL diretamente no navegador do dispositivo (fallback para download direto)
+  static Future<void> openBrowserUrl(String url) async {
+    if (kIsWeb || !Platform.isAndroid) return;
+    try {
+      await _installerChannel.invokeMethod('openBrowserUrl', {'url': url});
+    } catch (e) {
+      debugPrint('[AutoUpdate] Erro ao abrir navegador: $e');
     }
   }
 }

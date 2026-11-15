@@ -129,6 +129,22 @@ class MainActivity : FlutterActivity() {
                         result.error("INSTALL_ERROR", e.message, null)
                     }
                 }
+                "openBrowserUrl" -> {
+                    val url = call.argument<String>("url")
+                    if (!url.isNullOrBlank()) {
+                        try {
+                            val browserIntent = Intent(Intent.ACTION_VIEW, Uri.parse(url)).apply {
+                                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                            }
+                            startActivity(browserIntent)
+                            result.success(true)
+                        } catch (e: Exception) {
+                            result.error("BROWSER_ERROR", e.message, null)
+                        }
+                    } else {
+                        result.error("INVALID_URL", "URL vazia", null)
+                    }
+                }
                 else -> result.notImplemented()
             }
         }
