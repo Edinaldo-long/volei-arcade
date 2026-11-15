@@ -1,6 +1,7 @@
 package com.edinaldo.volei
 
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.provider.Settings
@@ -50,14 +51,27 @@ class MainActivity : FlutterActivity() {
 
                     try {
                         val apkFile = File(filePath)
-                        if (!apkFile.exists()) {
-                            result.error("FILE_NOT_FOUND", "Arquivo APK não encontrado em $filePath", null)
+                        if (!apkFile.exists() || apkFile.length() == 0L) {
+                            result.error("FILE_NOT_FOUND", "Arquivo APK não encontrado ou vazio em $filePath", null)
                             return@setMethodCallHandler
                         }
 
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                            if (!packageManager.canRequestPackageInstalls()) {
+                                val settingsIntent = Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES).apply {
+                                    data = Uri.parse("package:$packageName")
+                                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                }
+                                startActivity(settingsIntent)
+                                result.error("PERMISSION_DENIED", "Permissão para instalar apps desconhecidos não concedida.", null)
+                                return@setMethodCallHandler
+                            }
+                        }
+
+                        val authority = "$packageName.fileprovider"
                         val apkUri = FileProvider.getUriForFile(
-                            context,
-                            "${context.packageName}.fileprovider",
+                            applicationContext,
+                            authority,
                             apkFile
                         )
 
@@ -65,8 +79,20 @@ class MainActivity : FlutterActivity() {
                             setDataAndType(apkUri, "application/vnd.android.package-archive")
                             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                            addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
+                            putExtra(Intent.EXTRA_NOT_UNKNOWN_SOURCE, true)
                         }
-                        context.startActivity(intent)
+
+                        val resInfoList = packageManager.queryIntentActivities(
+                            intent,
+                            PackageManager.MATCH_DEFAULT_ONLY
+                        )
+                        for (resolveInfo in resInfoList) {
+                            val pkg = resolveInfo.activityInfo.packageName
+                            grantUriPermission(pkg, apkUri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                        }
+
+                        startActivity(intent)
                         result.success(true)
                     } catch (e: Exception) {
                         result.error("INSTALL_ERROR", e.message, null)
@@ -77,4 +103,3 @@ class MainActivity : FlutterActivity() {
         }
     }
 }
-

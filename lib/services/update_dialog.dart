@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'auto_update_service.dart';
 
@@ -18,12 +19,14 @@ class UpdateDialog extends StatefulWidget {
   State<UpdateDialog> createState() => _UpdateDialogState();
 }
 
-class _UpdateDialogState extends State<UpdateDialog> {
+class _UpdateDialogState extends State<UpdateDialog> with WidgetsBindingObserver {
   bool _downloading = false;
+  bool _downloadCompleted = false;
   double _progress = 0.0;
   String _status = '';
   String? _errorMessage;
-  bool _needsPermission = false;
+  bool _canInstall = true;
+  File? _apkFile;
 
   String _formatBytes(int bytes) {
     if (bytes <= 0) return '0 MB';
@@ -31,21 +34,111 @@ class _UpdateDialogState extends State<UpdateDialog> {
     return '${mb.toStringAsFixed(1)} MB';
   }
 
-  Future<void> _startDownload() async {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _checkInitialState();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _checkPermission();
+    }
+  }
+
+  Future<void> _checkPermission() async {
+    final can = await AutoUpdateService.canRequestPackageInstalls();
+    if (mounted) {
+      setState(() {
+        _canInstall = can;
+      });
+      // Se acabou de retornar das configurações e agora tem permissão, tenta abrir o instalador
+      if (can && _downloadCompleted && _apkFile != null) {
+        _triggerInstall();
+      }
+    }
+  }
+
+  Future<void> _checkInitialState() async {
+    final can = await AutoUpdateService.canRequestPackageInstalls();
+    final isDownloaded = await AutoUpdateService.isApkDownloaded();
+    File? file;
+    if (isDownloaded) {
+      file = await AutoUpdateService.getTargetApkFile();
+    }
+    if (mounted) {
+      setState(() {
+        _canInstall = can;
+        _downloadCompleted = isDownloaded;
+        _apkFile = file;
+        if (isDownloaded) {
+          _progress = 1.0;
+          _status = 'Arquivo APK pronto no dispositivo.';
+        }
+      });
+    }
+  }
+
+  Future<void> _triggerInstall() async {
+    final file = _apkFile ?? await AutoUpdateService.getTargetApkFile();
+    if (!await file.exists()) {
+      setState(() {
+        _downloadCompleted = false;
+        _errorMessage = 'Arquivo APK não encontrado. Por favor, baixe novamente.';
+      });
+      return;
+    }
+
     setState(() {
-      _downloading = true;
+      _status = 'Abrindo instalador do Android...';
       _errorMessage = null;
-      _status = 'Iniciando download...';
-      _needsPermission = false;
     });
 
     try {
-      final canInstall = await AutoUpdateService.canRequestPackageInstalls();
-      if (!canInstall) {
+      await AutoUpdateService.installApkFile(file);
+      if (mounted) {
         setState(() {
-          _needsPermission = true;
-          _status = 'Permissão de instalação necessária nas configurações.';
+          _status = 'Instalador solicitado ao sistema!';
         });
+      }
+    } catch (e) {
+      if (mounted) {
+        final err = e.toString();
+        if (err.contains('PERMISSION_DENIED')) {
+          setState(() {
+            _canInstall = false;
+            _errorMessage = 'Permissão necessária para instalar o APK.';
+          });
+        } else {
+          setState(() {
+            _errorMessage = 'Falha ao acionar instalador: $e';
+          });
+        }
+      }
+    }
+  }
+
+  Future<void> _startDownload() async {
+    setState(() {
+      _downloading = true;
+      _downloadCompleted = false;
+      _errorMessage = null;
+      _status = 'Iniciando download...';
+      _progress = 0.0;
+    });
+
+    try {
+      final file = await AutoUpdateService.getTargetApkFile();
+      if (await file.exists()) {
+        await file.delete();
       }
 
       await AutoUpdateService.downloadAndInstall(
@@ -67,11 +160,28 @@ class _UpdateDialogState extends State<UpdateDialog> {
           }
         },
       );
+
+      final exists = await file.exists();
+      if (mounted) {
+        setState(() {
+          _downloading = false;
+          _downloadCompleted = exists;
+          _apkFile = file;
+          _progress = 1.0;
+          _status = exists
+              ? 'Download concluído com sucesso!'
+              : 'Download finalizado.';
+        });
+
+        if (exists && _canInstall) {
+          _triggerInstall();
+        }
+      }
     } catch (e) {
       if (mounted) {
         setState(() {
           _downloading = false;
-          _errorMessage = 'Falha ao baixar/instalar: $e';
+          _errorMessage = 'Falha no processo: $e';
         });
       }
     }
@@ -91,13 +201,13 @@ class _UpdateDialogState extends State<UpdateDialog> {
       child: FittedBox(
         fit: BoxFit.scaleDown,
         child: Container(
-          width: 440,
+          width: 460,
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              // Cabeçalho compacto com título e badges de versão
+              // Cabeçalho com título e badges de versão
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
@@ -136,7 +246,7 @@ class _UpdateDialogState extends State<UpdateDialog> {
               ),
               const SizedBox(height: 12),
 
-              // Área Central: Imediatamente visível sem rolagem
+              // Área de Download / Status
               if (_downloading) ...[
                 ClipRRect(
                   borderRadius: BorderRadius.circular(6),
@@ -173,21 +283,101 @@ class _UpdateDialogState extends State<UpdateDialog> {
                     ),
                   ],
                 ),
-                if (_needsPermission) ...[
+              ] else if (_downloadCompleted) ...[
+                // APK baixado e pronto
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: const Color(0x2200E676),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: const Color(0xFF00E676)),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: const [
+                          Icon(Icons.check_circle, color: Color(0xFF00E676), size: 22),
+                          SizedBox(width: 8),
+                          Text(
+                            'PACOTE DE ATUALIZAÇÃO PRONTO!',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        _status.isNotEmpty
+                            ? _status
+                            : 'O APK da nova versão foi baixado com sucesso.',
+                        style: const TextStyle(color: Colors.white70, fontSize: 11),
+                      ),
+                    ],
+                  ),
+                ),
+
+                if (!_canInstall) ...[
                   const SizedBox(height: 10),
-                  FilledButton.icon(
-                    onPressed: AutoUpdateService.openInstallPermissionSettings,
-                    style: FilledButton.styleFrom(
-                      backgroundColor: Colors.orange.shade800,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 8),
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: const Color(0x33FF9800),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.amber),
                     ),
-                    icon: const Icon(Icons.security, size: 16),
-                    label: const Text('ATIVAR PERMISSÃO DE INSTALAÇÃO',
-                        style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        const Text(
+                          '⚠️ PERMISSÃO NECESSÁRIA NO ANDROID:',
+                          style: TextStyle(
+                            color: Colors.amber,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 11,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        const Text(
+                          'Ative a opção "Permitir desta fonte" ou "Instalar apps desconhecidos" nas configurações e retorne ao jogo.',
+                          style: TextStyle(color: Colors.white, fontSize: 11),
+                        ),
+                        const SizedBox(height: 8),
+                        FilledButton.icon(
+                          onPressed: AutoUpdateService.openInstallPermissionSettings,
+                          style: FilledButton.styleFrom(
+                            backgroundColor: Colors.amber.shade700,
+                            foregroundColor: Colors.black,
+                            padding: const EdgeInsets.symmetric(vertical: 8),
+                          ),
+                          icon: const Icon(Icons.security, size: 16),
+                          label: const Text('1. ATIVAR PERMISSÃO ⚙️',
+                              style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                        ),
+                      ],
+                    ),
                   ),
                 ],
+
+                const SizedBox(height: 10),
+                FilledButton.icon(
+                  onPressed: _triggerInstall,
+                  style: FilledButton.styleFrom(
+                    backgroundColor: const Color(0xFF2E7D32),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 10),
+                  ),
+                  icon: const Icon(Icons.install_mobile, size: 20),
+                  label: Text(
+                    !_canInstall ? '2. ABRIR INSTALADOR DO ANDROID 📲' : 'ABRIR INSTALADOR DO ANDROID 📲',
+                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+                  ),
+                ),
               ] else ...[
+                // Estado inicial
                 Container(
                   padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
@@ -245,11 +435,11 @@ class _UpdateDialogState extends State<UpdateDialog> {
                   TextButton(
                     onPressed: () => Navigator.of(context).pop(),
                     child: Text(
-                      _downloading ? 'FECHAR' : 'DEPOIS',
+                      _downloading ? 'CANCELAR' : 'FECHAR',
                       style: const TextStyle(color: Colors.white60, fontSize: 12),
                     ),
                   ),
-                  if (!_downloading) ...[
+                  if (!_downloading && !_downloadCompleted) ...[
                     const SizedBox(width: 8),
                     FilledButton.icon(
                       style: FilledButton.styleFrom(

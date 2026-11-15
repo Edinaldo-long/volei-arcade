@@ -165,6 +165,42 @@ class AutoUpdateService {
     }
   }
 
+  /// Obtém a referência do arquivo APK de destino
+  static Future<File> getTargetApkFile() async {
+    Directory dir;
+    try {
+      final ext = await getExternalStorageDirectory();
+      dir = ext ?? await getTemporaryDirectory();
+    } catch (_) {
+      dir = await getTemporaryDirectory();
+    }
+    return File('${dir.path}/app-release.apk');
+  }
+
+  /// Verifica se o APK já foi baixado com sucesso
+  static Future<bool> isApkDownloaded({int minBytes = 10000000}) async {
+    try {
+      final file = await getTargetApkFile();
+      if (await file.exists()) {
+        final length = await file.length();
+        return length >= minBytes;
+      }
+      return false;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// Dispara a instalação nativa do APK
+  static Future<void> installApkFile(File apkFile) async {
+    if (kIsWeb || !Platform.isAndroid) {
+      throw UnsupportedError('Instalação suportada apenas no Android nativo.');
+    }
+    await _installerChannel.invokeMethod('installApk', {
+      'filePath': apkFile.path,
+    });
+  }
+
   /// Baixa o APK de release com progresso e aciona o instalador nativo
   static Future<void> downloadAndInstall({
     required String downloadUrl,
@@ -189,8 +225,7 @@ class AutoUpdateService {
       final totalBytes = response.contentLength ?? 0;
       var receivedBytes = 0;
 
-      final tempDir = await getTemporaryDirectory();
-      final apkFile = File('${tempDir.path}/app-release.apk');
+      final apkFile = await getTargetApkFile();
       if (await apkFile.exists()) {
         await apkFile.delete();
       }
@@ -206,18 +241,16 @@ class AutoUpdateService {
       await sink.flush();
       await sink.close();
 
-      onStatus('Download concluído! Verificando permissões...');
+      onStatus('Download concluído!');
 
       final canInstall = await canRequestPackageInstalls();
       if (!canInstall) {
-        onStatus('Aguardando permissão de instalação...');
+        onStatus('Permissão necessária nas configurações.');
         await openInstallPermissionSettings();
+      } else {
+        onStatus('Abrindo instalador do Android...');
+        await installApkFile(apkFile);
       }
-
-      onStatus('Abrindo instalador do Android...');
-      await _installerChannel.invokeMethod('installApk', {
-        'filePath': apkFile.path,
-      });
     } finally {
       client.close();
     }
