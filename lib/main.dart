@@ -1138,7 +1138,6 @@ class VolleyGame extends FlameGame with KeyboardEvents {
     p.swing = 0.3;
     pads[p.team].hitBuf = 0;
     pads[p.team].setBuf = 0;
-    ArcadeAudio.playWhistle();
     _rerollAi();
   }
 
@@ -2193,7 +2192,6 @@ class _Menu extends StatefulWidget {
 
 class _MenuState extends State<_Menu> {
   int diff = 1;
-  bool showTournamentSetup = false;
   UpdateInfo? _updateInfo;
 
   @override
@@ -2223,211 +2221,58 @@ class _MenuState extends State<_Menu> {
     });
   }
 
-  @override
-  Widget build(BuildContext context) {
-    final g = widget.game;
-    const roundNames = ['1ª Fase (Quartas)', '2ª Fase (Semifinal)', '3ª Fase (Final)', '4ª Fase (Super Final)'];
+  void _openRivalsDialog(BuildContext context, VolleyGame g) {
+    const roundNames = [
+      '1ª Fase (Quartas)',
+      '2ª Fase (Semifinal)',
+      '3ª Fase (Final)',
+      '4ª Fase (Super Final)'
+    ];
 
-    return _Panel(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Icon(Icons.sports_volleyball, color: Colors.amber, size: 48),
-          const Text(
-            'VÔLEI ARCADE',
-            style: TextStyle(
-                color: Color(0xFFFFD600),
-                fontSize: 28,
-                fontWeight: FontWeight.w900,
-                letterSpacing: 2,
-                shadows: [Shadow(offset: Offset(3, 3), color: Colors.black)]),
-          ),
-          const Text('2 contra 2  •  até 15 pontos',
-              style: TextStyle(color: Colors.white70, fontSize: 13)),
-          const SizedBox(height: 12),
-
-          if (_updateInfo != null && _updateInfo!.hasUpdate) ...[
-            Container(
-              margin: const EdgeInsets.only(bottom: 12),
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  colors: [Color(0xFFE65100), Color(0xFFFF9100)],
-                ),
-                borderRadius: BorderRadius.circular(10),
-                boxShadow: const [
-                  BoxShadow(color: Colors.black45, blurRadius: 6, offset: Offset(0, 3)),
-                ],
-              ),
-              child: Row(
-                children: [
-                  const Icon(Icons.system_update_alt, color: Colors.white, size: 24),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          'NOVA VERSÃO DISPONÍVEL!',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 11,
-                          ),
-                        ),
-                        Text(
-                          'v${_updateInfo!.latestVersion} pronta para instalar',
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 10,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  ElevatedButton(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.white,
-                      foregroundColor: const Color(0xFFE65100),
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                      minimumSize: Size.zero,
-                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    ),
-                    onPressed: () => UpdateDialog.show(context, _updateInfo!),
-                    child: const Text('ATUALIZAR',
-                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11)),
-                  ),
-                ],
-              ),
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setDialogState) {
+          return AlertDialog(
+            backgroundColor: const Color(0xFF0A1050),
+            shape: RoundedRectangleBorder(
+              side: const BorderSide(color: Colors.amber, width: 3),
+              borderRadius: BorderRadius.circular(12),
             ),
-          ],
-
-          // Seletor de país do jogador
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-            decoration: BoxDecoration(
-              color: const Color(0x33000000),
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: Colors.white30),
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            title: const Row(
               children: [
-                const Text('SEU TIME:',
-                    style: TextStyle(color: Colors.amber, fontWeight: FontWeight.bold, fontSize: 13)),
-                DropdownButton<int>(
-                  value: g.playerTeamIndex,
-                  dropdownColor: const Color(0xFF0A1050),
-                  underline: const SizedBox(),
-                  icon: const Icon(Icons.arrow_drop_down, color: Colors.amber),
-                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
-                  items: [
-                    for (var i = 0; i < kAvailableTeams.length; i++)
-                      DropdownMenuItem<int>(
-                        value: i,
-                        child: Row(
-                          children: [
-                            FlagRenderer.flagWidget(kAvailableTeams[i].name, width: 26, height: 17),
-                            const SizedBox(width: 8),
-                            Text(kAvailableTeams[i].name),
-                          ],
-                        ),
-                      ),
-                  ],
-                  onChanged: (v) {
-                    if (v != null) {
-                      setState(() {
-                        g.playerTeamIndex = v;
-                      });
-                    }
-                  },
+                Icon(Icons.emoji_events, color: Colors.amber, size: 24),
+                SizedBox(width: 8),
+                Text(
+                  'RIVAIS DO TORNEIO',
+                  style: TextStyle(
+                    color: Color(0xFFFFD600),
+                    fontSize: 16,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 1,
+                  ),
                 ),
               ],
             ),
-          ),
-          const SizedBox(height: 10),
-
-          // SELETOR GLOBAL DE DIFICULDADE (Torneio e Amistoso)
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-            decoration: BoxDecoration(
-              color: const Color(0x33000000),
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: Colors.white24),
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Text('DIFICULDADE:',
-                    style: TextStyle(color: Colors.amber, fontWeight: FontWeight.bold, fontSize: 12)),
-                const SizedBox(height: 4),
-                Wrap(
-                  spacing: 6,
-                  alignment: WrapAlignment.center,
-                  children: [
-                    for (var i = 0; i < 3; i++)
-                      ChoiceChip(
-                        label: Text(
-                          const ['Fácil 🟢', 'Normal 🟡', 'Difícil 🔴'][i],
-                          style: TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.bold,
-                            color: diff == i ? Colors.black : Colors.white,
-                          ),
-                        ),
-                        selected: diff == i,
-                        selectedColor: const [Color(0xFF69F0AE), Color(0xFFFFD54F), Color(0xFFFF5252)][i],
-                        onSelected: (_) => setState(() => diff = i),
-                      ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 12),
-
-          // MODO TORNEIO
-          FilledButton.icon(
-            onPressed: () => g.startMatch(0, diff: diff),
-            icon: const Icon(Icons.emoji_events),
-            label: const Text('JOGAR TORNEIO (4 FASES)'),
-          ),
-          const SizedBox(height: 6),
-
-          // Botão para configurar países rivais do torneio
-          OutlinedButton.icon(
-            style: OutlinedButton.styleFrom(
-              foregroundColor: Colors.amber,
-              side: const BorderSide(color: Colors.amber),
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            ),
-            onPressed: () => setState(() => showTournamentSetup = !showTournamentSetup),
-            icon: Icon(showTournamentSetup ? Icons.expand_less : Icons.tune),
-            label: Text(showTournamentSetup ? 'OCULTAR RIVAIS DO TORNEIO' : 'ESCOLHER RIVAIS DO TORNEIO 🏆'),
-          ),
-
-          // Painel expansível de escolha de rivais do torneio
-          if (showTournamentSetup) ...[
-            const SizedBox(height: 8),
-            Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: const Color(0x33000000),
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Colors.amber.withValues(alpha: 0.5)),
-              ),
+            content: SizedBox(
+              width: 380,
               child: Column(
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Text('RIVAIS DE CADA FASE:',
-                      style: TextStyle(color: Colors.amber, fontWeight: FontWeight.w900, fontSize: 12)),
-                  const SizedBox(height: 6),
                   for (var r = 0; r < 4; r++)
                     Padding(
                       padding: const EdgeInsets.symmetric(vertical: 2),
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Text(roundNames[r], style: const TextStyle(color: Colors.white70, fontSize: 12)),
+                          Text(
+                            roundNames[r],
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
                           DropdownButton<int>(
                             value: g.tournamentRivalIndices[r] % kAvailableTeams.length,
                             dropdownColor: const Color(0xFF0A1050),
@@ -2439,8 +2284,9 @@ class _MenuState extends State<_Menu> {
                                 DropdownMenuItem<int>(
                                   value: i,
                                   child: Row(
+                                    mainAxisSize: MainAxisSize.min,
                                     children: [
-                                      FlagRenderer.flagWidget(kAvailableTeams[i].name, width: 22, height: 15),
+                                      FlagRenderer.flagWidget(kAvailableTeams[i].name, width: 22, height: 14),
                                       const SizedBox(width: 6),
                                       Text(kAvailableTeams[i].name),
                                     ],
@@ -2449,143 +2295,438 @@ class _MenuState extends State<_Menu> {
                             ],
                             onChanged: (v) {
                               if (v != null) {
-                                setState(() {
+                                setDialogState(() {
                                   g.tournamentRivalIndices[r] = v;
                                 });
+                                setState(() {});
                               }
                             },
                           ),
                         ],
                       ),
                     ),
-                  const SizedBox(height: 6),
+                  const SizedBox(height: 10),
                   Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                     children: [
                       TextButton.icon(
-                        onPressed: () => _shuffleRivals(g),
-                        icon: const Icon(Icons.casino, size: 16),
-                        label: const Text('SORTEAR 🎲', style: TextStyle(fontSize: 12)),
+                        onPressed: () {
+                          _shuffleRivals(g);
+                          setDialogState(() {});
+                        },
+                        icon: const Icon(Icons.casino, size: 16, color: Colors.amber),
+                        label: const Text('SORTEAR 🎲', style: TextStyle(color: Colors.amber, fontSize: 12)),
                       ),
-                      const SizedBox(width: 10),
                       TextButton.icon(
-                        onPressed: () => _resetDefaultRivals(g),
-                        icon: const Icon(Icons.refresh, size: 16),
-                        label: const Text('PADRÃO 🔄', style: TextStyle(fontSize: 12)),
+                        onPressed: () {
+                          _resetDefaultRivals(g);
+                          setDialogState(() {});
+                        },
+                        icon: const Icon(Icons.refresh, size: 16, color: Colors.white70),
+                        label: const Text('PADRÃO 🔄', style: TextStyle(color: Colors.white70, fontSize: 12)),
                       ),
                     ],
                   ),
                 ],
               ),
             ),
-          ],
+            actions: [
+              FilledButton(
+                style: FilledButton.styleFrom(
+                  backgroundColor: Colors.amber,
+                  foregroundColor: Colors.black,
+                  visualDensity: VisualDensity.compact,
+                ),
+                onPressed: () => Navigator.of(ctx).pop(),
+                child: const Text('CONFIRMAR', style: TextStyle(fontWeight: FontWeight.bold)),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
 
-          const SizedBox(height: 12),
+  @override
+  Widget build(BuildContext context) {
+    final g = widget.game;
 
-          // MODO AMISTOSO COM ESCOLHA DE RIVAL
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-            decoration: BoxDecoration(
-              color: const Color(0x22000000),
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: Colors.white24),
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isLandscape = constraints.maxWidth >= 550;
+
+        final leftColumn = Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // Cabeçalho / Título do Jogo
+            Row(
               children: [
-                const Text('RIVAL AMISTOSO:',
-                    style: TextStyle(color: Colors.white70, fontWeight: FontWeight.bold, fontSize: 12)),
-                DropdownButton<int>(
-                  value: g.exhibitionRivalIndex % kAvailableTeams.length,
-                  dropdownColor: const Color(0xFF0A1050),
-                  underline: const SizedBox(),
-                  icon: const Icon(Icons.arrow_drop_down, color: Colors.amber, size: 18),
-                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
-                  items: [
-                    for (var i = 0; i < kAvailableTeams.length; i++)
-                      DropdownMenuItem<int>(
-                        value: i,
-                        child: Row(
-                          children: [
-                            FlagRenderer.flagWidget(kAvailableTeams[i].name, width: 24, height: 16),
-                            const SizedBox(width: 6),
-                            Text(kAvailableTeams[i].name),
-                          ],
-                        ),
+                const Icon(Icons.sports_volleyball, color: Colors.amber, size: 36),
+                const SizedBox(width: 10),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: const [
+                    Text(
+                      'VÔLEI ARCADE',
+                      style: TextStyle(
+                        color: Color(0xFFFFD600),
+                        fontSize: 22,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: 2,
+                        shadows: [Shadow(offset: Offset(2, 2), color: Colors.black)],
                       ),
+                    ),
+                    Text(
+                      '2 contra 2  •  até 15 pontos',
+                      style: TextStyle(color: Colors.white70, fontSize: 11),
+                    ),
                   ],
-                  onChanged: (v) {
-                    if (v != null) {
-                      setState(() {
-                        g.exhibitionRivalIndex = v;
-                      });
-                    }
-                  },
                 ),
               ],
             ),
-          ),
-          const SizedBox(height: 10),
-          FilledButton.tonalIcon(
-            onPressed: () => g.startMatch(1, diff: diff),
-            icon: const Icon(Icons.person),
-            label: const Text('JOGAR AMISTOSO'),
-          ),
-          const SizedBox(height: 10),
-          FilledButton.tonalIcon(
-            onPressed: () => g.startMatch(2),
-            icon: const Icon(Icons.people),
-            label: const Text('2 JOGADORES (VERSUS LOCAL)'),
-          ),
-          const SizedBox(height: 12),
+            const SizedBox(height: 8),
 
-          // Opções de Som e Cenário
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Expanded(
-                child: FilledButton.tonalIcon(
-                  onPressed: () => setState(() => g.toggleSfx()),
-                  style: FilledButton.styleFrom(
-                    backgroundColor: g.sfxEnabled ? const Color(0xFF2E7D32) : const Color(0xFF424242),
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+            // Banner de atualização rápida (se houver)
+            if (_updateInfo != null && _updateInfo!.hasUpdate) ...[
+              Container(
+                margin: const EdgeInsets.only(bottom: 8),
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFFE65100), Color(0xFFFF9100)],
                   ),
-                  icon: Icon(g.sfxEnabled ? Icons.volume_up : Icons.volume_off, size: 18),
-                  label: Text(
-                    g.sfxEnabled ? 'SOM: ON 🔊' : 'SOM: OFF 🔇',
-                    style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
-                  ),
+                  borderRadius: BorderRadius.circular(8),
                 ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: FilledButton.tonalIcon(
-                  onPressed: () => setState(() => g.toggleArena()),
-                  style: FilledButton.styleFrom(
-                    backgroundColor: g.isBeach ? const Color(0xFFF57F17) : const Color(0xFF1565C0),
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
-                  ),
-                  icon: Icon(g.isBeach ? Icons.beach_access : Icons.stadium, size: 18),
-                  label: Text(
-                    g.isBeach ? 'PRAIA 🏖️' : 'GINÁSIO 🏢',
-                    style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
-                  ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.system_update_alt, color: Colors.white, size: 18),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        'Nova versão v pronta!',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 11,
+                        ),
+                      ),
+                    ),
+                    ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.white,
+                        foregroundColor: const Color(0xFFE65100),
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        minimumSize: Size.zero,
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      ),
+                      onPressed: () => UpdateDialog.show(context, _updateInfo!),
+                      child: const Text('ATUALIZAR',
+                          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 10)),
+                    ),
+                  ],
                 ),
               ),
             ],
-          ),
-          const SizedBox(height: 14),
-          const Text(
-            'M = música  •  C = cenário  •  P / ESC = pausa\n'
-            'Saque: 1 toque = lançar bola  •  Pular + bater = Saque Viagem!\n'
-            'Celular: joystick à esquerda • botão laranja = bater • azul = pular',
+
+            // Seletor de país do jogador
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
+              decoration: BoxDecoration(
+                color: const Color(0x33000000),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.white30),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text('SEU TIME:',
+                      style: TextStyle(color: Colors.amber, fontWeight: FontWeight.bold, fontSize: 12)),
+                  DropdownButton<int>(
+                    value: g.playerTeamIndex,
+                    dropdownColor: const Color(0xFF0A1050),
+                    underline: const SizedBox(),
+                    icon: const Icon(Icons.arrow_drop_down, color: Colors.amber, size: 20),
+                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
+                    items: [
+                      for (var i = 0; i < kAvailableTeams.length; i++)
+                        DropdownMenuItem<int>(
+                          value: i,
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              FlagRenderer.flagWidget(kAvailableTeams[i].name, width: 24, height: 16),
+                              const SizedBox(width: 8),
+                              Text(kAvailableTeams[i].name),
+                            ],
+                          ),
+                        ),
+                    ],
+                    onChanged: (v) {
+                      if (v != null) {
+                        setState(() {
+                          g.playerTeamIndex = v;
+                        });
+                      }
+                    },
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 8),
+
+            // Seletor de Dificuldade
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: const Color(0x33000000),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.white24),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text(
+                    'DIFICULDADE:',
+                    style: TextStyle(color: Colors.amber, fontWeight: FontWeight.bold, fontSize: 11),
+                  ),
+                  const SizedBox(height: 2),
+                  Wrap(
+                    spacing: 6,
+                    alignment: WrapAlignment.center,
+                    children: [
+                      for (var i = 0; i < 3; i++)
+                        ChoiceChip(
+                          visualDensity: VisualDensity.compact,
+                          materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 0),
+                          label: Text(
+                            const ['Fácil 🟢', 'Normal 🟡', 'Difícil 🔴'][i],
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                              color: diff == i ? Colors.black : Colors.white,
+                            ),
+                          ),
+                          selected: diff == i,
+                          selectedColor: const [Color(0xFF69F0AE), Color(0xFFFFD54F), Color(0xFFFF5252)][i],
+                          onSelected: (_) => setState(() => diff = i),
+                        ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 8),
+
+            // Opções de Som e Cenário
+            Row(
+              children: [
+                Expanded(
+                  child: FilledButton.tonalIcon(
+                    onPressed: () => setState(() => g.toggleSfx()),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: g.sfxEnabled ? const Color(0xFF2E7D32) : const Color(0xFF424242),
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
+                      visualDensity: VisualDensity.compact,
+                    ),
+                    icon: Icon(g.sfxEnabled ? Icons.volume_up : Icons.volume_off, size: 16),
+                    label: Text(
+                      g.sfxEnabled ? 'SOM: ON 🔊' : 'SOM: OFF 🔇',
+                      style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: FilledButton.tonalIcon(
+                    onPressed: () => setState(() => g.toggleArena()),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: g.isBeach ? const Color(0xFFF57F17) : const Color(0xFF1565C0),
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
+                      visualDensity: VisualDensity.compact,
+                    ),
+                    icon: Icon(g.isBeach ? Icons.beach_access : Icons.stadium, size: 16),
+                    label: Text(
+                      g.isBeach ? 'PRAIA 🏖️' : 'GINÁSIO 🏢',
+                      style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        );
+
+        final rightColumn = Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // MODO TORNEIO
+            Container(
+              padding: const EdgeInsets.all(6),
+              decoration: BoxDecoration(
+                color: const Color(0x22000000),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.amber.withValues(alpha: 0.4)),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  FilledButton.icon(
+                    onPressed: () => g.startMatch(0, diff: diff),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: const Color(0xFFFFB300),
+                      foregroundColor: Colors.black,
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      visualDensity: VisualDensity.compact,
+                    ),
+                    icon: const Icon(Icons.emoji_events, size: 18),
+                    label: const Text(
+                      'JOGAR TORNEIO (4 FASES)',
+                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  OutlinedButton.icon(
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: Colors.amber,
+                      side: const BorderSide(color: Colors.amber),
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      visualDensity: VisualDensity.compact,
+                    ),
+                    onPressed: () => _openRivalsDialog(context, g),
+                    icon: const Icon(Icons.tune, size: 14),
+                    label: const Text('ESCOLHER RIVAIS DO TORNEIO 🏆', style: TextStyle(fontSize: 10)),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 6),
+
+            // MODO AMISTOSO
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+              decoration: BoxDecoration(
+                color: const Color(0x22000000),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.white24),
+              ),
+              child: Row(
+                children: [
+                  const Text('Rival:',
+                      style: TextStyle(color: Colors.white70, fontWeight: FontWeight.bold, fontSize: 11)),
+                  const SizedBox(width: 6),
+                  DropdownButton<int>(
+                    value: g.exhibitionRivalIndex % kAvailableTeams.length,
+                    dropdownColor: const Color(0xFF0A1050),
+                    underline: const SizedBox(),
+                    icon: const Icon(Icons.arrow_drop_down, color: Colors.amber, size: 18),
+                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 11),
+                    items: [
+                      for (var i = 0; i < kAvailableTeams.length; i++)
+                        DropdownMenuItem<int>(
+                          value: i,
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              FlagRenderer.flagWidget(kAvailableTeams[i].name, width: 20, height: 13),
+                              const SizedBox(width: 4),
+                              Text(kAvailableTeams[i].name),
+                            ],
+                          ),
+                        ),
+                    ],
+                    onChanged: (v) {
+                      if (v != null) {
+                        setState(() {
+                          g.exhibitionRivalIndex = v;
+                        });
+                      }
+                    },
+                  ),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: FilledButton.tonalIcon(
+                      onPressed: () => g.startMatch(1, diff: diff),
+                      style: FilledButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 6),
+                        visualDensity: VisualDensity.compact,
+                      ),
+                      icon: const Icon(Icons.person, size: 14),
+                      label: const Text('JOGAR AMISTOSO', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold)),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 6),
+
+            // MODO 2 JOGADORES
+            FilledButton.tonalIcon(
+              onPressed: () => g.startMatch(2),
+              style: FilledButton.styleFrom(
+                padding: const EdgeInsets.symmetric(vertical: 6),
+                visualDensity: VisualDensity.compact,
+              ),
+              icon: const Icon(Icons.people, size: 16),
+              label: const Text('2 JOGADORES (VERSUS LOCAL)', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+            ),
+          ],
+        );
+
+        final footer = const Padding(
+          padding: EdgeInsets.only(top: 8),
+          child: Text(
+            '🎮 Celular: Analógico na esquerda • Botão laranja = Bater / Sacar • Botão azul = Pular • P = Pausa',
             textAlign: TextAlign.center,
-            style: TextStyle(color: Colors.white60, fontSize: 11, height: 1.4),
+            style: TextStyle(color: Colors.white54, fontSize: 10),
           ),
-        ],
-      ),
+        );
+
+        return SafeArea(
+          child: Center(
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Container(
+                width: isLandscape ? 820 : 420,
+                margin: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                padding: const EdgeInsets.fromLTRB(18, 12, 18, 10),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF0A1050),
+                  border: Border.all(color: Colors.white, width: 3),
+                  boxShadow: const [
+                    BoxShadow(color: Colors.black54, offset: Offset(6, 6), blurRadius: 4),
+                  ],
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (isLandscape)
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(child: leftColumn),
+                          const SizedBox(width: 16),
+                          Expanded(child: rightColumn),
+                        ],
+                      )
+                    else ...[
+                      leftColumn,
+                      const SizedBox(height: 10),
+                      rightColumn,
+                    ],
+                    footer,
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 }

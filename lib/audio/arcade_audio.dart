@@ -110,7 +110,7 @@ class ArcadeAudio {
       _spikePlayerInstance ??= _createPlayer(1.0);
 
   static AudioPlayer? get _whistlePlayer =>
-      _whistlePlayerInstance ??= _createPlayer(0.90);
+      _whistlePlayerInstance ??= _createPlayer(0.55);
 
   static AudioPlayer? get _pointPlayer =>
       _pointPlayerInstance ??= _createPlayer(0.95);
