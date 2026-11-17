@@ -257,6 +257,28 @@ class VolleyGame extends FlameGame with KeyboardEvents {
     Player(1, 1, kL - 330, kWd * 0.30),
   ];
   final List<Player?> controlled = [null, null];
+  /// Trava da seta de controle (Padrão Híbrido Mobile Arcade):
+  /// Uma vez atribuída a um jogador para uma jogada, fica travada nele até o toque na bola.
+  final List<Player?> _lockedPlayer = [null, null];
+  final List<int> _lockedPhase = [-1, -1];
+  final List<int> _lockedTouches = [-1, -1];
+  final List<int> _lockedBallSide = [-1, -1];
+
+  void _clearLocks([int? team]) {
+    if (team != null) {
+      _lockedPlayer[team] = null;
+      _lockedPhase[team] = -1;
+      _lockedTouches[team] = -1;
+      _lockedBallSide[team] = -1;
+    } else {
+      for (var t = 0; t < 2; t++) {
+        _lockedPlayer[t] = null;
+        _lockedPhase[t] = -1;
+        _lockedTouches[t] = -1;
+        _lockedBallSide[t] = -1;
+      }
+    }
+  }
   final List<Pad> pads = [Pad(), Pad()];
   final List<int> score = [0, 0];
   int serving = 0;
@@ -487,7 +509,9 @@ class VolleyGame extends FlameGame with KeyboardEvents {
     motionTrail.clear();
     timingPopups.clear();
     ballSquashTime = 0;
+    _clearLocks();
     controlled[serving] = _server;
+    _lockedPlayer[serving] = _server;
     _serveTimer = 1.0 + _rnd.nextDouble() * 0.6;
     phase = Phase.serving;
     _placeBallOnServer();
@@ -622,32 +646,32 @@ class VolleyGame extends FlameGame with KeyboardEvents {
       touches[p.team] < 3 &&
       !(lastToucher == p && lastTeam == p.team && touches[p.team] > 0);
 
-  Player? _pick(List<Player> mates, double x, double y) {
-    double d(Player p) {
-      final dx = p.x - x, dy = p.y - y;
-      return math.sqrt(dx * dx + dy * dy);
-    }
-
+  /// Encontra o jogador elegível mais próximo das coordenadas (x, y)
+  Player? _pickClosest(List<Player> mates, double x, double y) {
     Player? best;
+    double bestDist = double.infinity;
     for (final m in mates) {
       if (!_eligible(m)) continue;
-      if (best == null || d(m) < d(best)) best = m;
+      final dx = m.x - x, dy = m.y - y;
+      final d = math.sqrt(dx * dx + dy * dy);
+      if (d < bestDist) {
+        bestDist = d;
+        best = m;
+      }
     }
     final team = mates.first.team;
     final cur = controlled[team];
     if (best != null && cur != null && cur != best && _eligible(cur)) {
-      final isHuman = _isHumanTeam(team);
       final pad = pads[team];
-      final isSteering = isHuman && (pad.dx.abs() > 0.08 || pad.dy.abs() > 0.08);
-      // Quando o jogador humano está movendo o analógico ativamente, mantém o jogador controlado
-      // com ampla tolerância (220px) para que o movimento nunca seja interrompido no meio do lance.
-      // Quando o analógico está em repouso, uma histerese confortável (120px) evita oscilações bruscas.
-      final hysteresis = isSteering ? 220.0 : (isHuman ? 120.0 : 45.0);
-      if (d(cur) <= d(best) + hysteresis) {
-        best = cur;
+      final isSteering = _isHumanTeam(team) && (pad.dx.abs() > 0.08 || pad.dy.abs() > 0.08);
+      if (isSteering) {
+        final curDist = math.sqrt((cur.x - x) * (cur.x - x) + (cur.y - y) * (cur.y - y));
+        if (curDist <= bestDist + 220.0) {
+          best = cur;
+        }
       }
     }
-    return best;
+    return best ?? mates.firstWhere((m) => _eligible(m), orElse: () => mates.first);
   }
 
   /// Prevê onde (x, y) e quando (t) a bola desce passando pela altura [zz].
@@ -679,6 +703,7 @@ class VolleyGame extends FlameGame with KeyboardEvents {
       Player? primary;
 
       if (phase == Phase.serving) {
+        _clearLocks(team);
         if (team == serving) primary = _server;
       } else if (phase == Phase.rally) {
         final land = _predict(kBR);
@@ -689,47 +714,141 @@ class VolleyGame extends FlameGame with KeyboardEvents {
             (lastTeam != team || touches[team] == 0);
 
         if (myBall) {
-          // RECEPÇÃO
+          // ============================================================
+          // 1. RECEPÇÃO (Toque 0) - Troca Inteligente com Trava (Lock)
+          // ============================================================
           final pr = _predict(62);
-          primary = _pick(mates, pr.x, pr.y);
+          final curLock = _lockedPlayer[team];
+          final needsLock = curLock == null ||
+              !_eligible(curLock) ||
+              _lockedPhase[team] != 0 ||
+              _lockedTouches[team] != touches[team];
+
+          if (needsLock) {
+            primary = _pickClosest(mates, pr.x, pr.y);
+            _lockedPlayer[team] = primary;
+            _lockedPhase[team] = 0;
+            _lockedTouches[team] = touches[team];
+          } else {
+            primary = curLock;
+          }
+
           if (_isHumanTeam(team) && primary != null) marker[team] = pr;
           if (primary != null) {
             primary.tx = pr.x + primary.errX;
             primary.ty = pr.y + primary.errY;
             primary.wHit = true;
           }
-          for (final o in mates) {
-            if (o != primary) {
-              o.tx = _baseX(o);
-              o.ty = _baseY(o);
+
+          // IA do Parceiro (sem a seta): Cobertura complementar inteligente
+          final partner = mates.firstWhere((p) => p != primary, orElse: () => mates.first);
+          if (partner != primary) {
+            final isBackcourt = team == 0 ? pr.x < 240 : pr.x > kL - 240;
+            partner.tx = team == 0
+                ? (isBackcourt ? 295.0 : 150.0)
+                : (isBackcourt ? kL - 295.0 : kL - 150.0);
+            partner.ty = (pr.y < kWd * 0.5 ? kWd * 0.72 : kWd * 0.28).clamp(25.0, kWd - 25.0).toDouble();
+            partner.wHit = false;
+            partner.wJump = false;
+
+            // Reflexo de Defesa de Emergência no Parceiro:
+            // Se a bola passar num raio curto do parceiro ou estiver prestes a cair e fora do alcance do ativo,
+            // o parceiro reage automaticamente para rebater/levantar e salvar o ponto.
+            if (_eligible(partner) && bz < 140) {
+              final dPartnerBall = math.sqrt((bx - partner.x) * (bx - partner.x) + (by - partner.y) * (by - partner.y));
+              final dPrimaryBall = primary != null
+                  ? math.sqrt((bx - primary.x) * (bx - primary.x) + (by - primary.y) * (by - primary.y))
+                  : 999.0;
+
+              final emergencyDist = dPartnerBall <= 125.0;
+              final primaryFar = dPrimaryBall > dPartnerBall + 30.0;
+              final ballImminent = bz < 85.0 || pr.t < 0.26;
+              final fastSpikeNear = pr.t < 0.35 && dPartnerBall <= 140.0 && dPrimaryBall > 105.0;
+
+              if (emergencyDist && (primaryFar || ballImminent || fastSpikeNear)) {
+                partner.tx = bx;
+                partner.ty = by;
+                partner.wHit = true;
+                if (partner.onGround && bz > 95 && bz < 160) {
+                  partner.wJump = true;
+                }
+              }
             }
           }
         } else if (!out &&
             lastTeam == team &&
             ballSide == team &&
             touches[team] == 1) {
-          // LEVANTAMENTO
+          // ============================================================
+          // 2. LEVANTAMENTO (Toque 1) - Trava no levantador
+          // ============================================================
           final pr = _predict(70);
-          primary = _pick(mates, pr.x, pr.y);
+          final curLock = _lockedPlayer[team];
+          final needsLock = curLock == null ||
+              !_eligible(curLock) ||
+              _lockedPhase[team] != 1 ||
+              _lockedTouches[team] != touches[team];
+
+          if (needsLock) {
+            primary = _pickClosest(mates, pr.x, pr.y);
+            _lockedPlayer[team] = primary;
+            _lockedPhase[team] = 1;
+            _lockedTouches[team] = touches[team];
+          } else {
+            primary = curLock;
+          }
+
           if (_isHumanTeam(team) && primary != null) marker[team] = pr;
           if (primary != null) {
             primary.tx = pr.x + primary.errX * 0.5;
             primary.ty = pr.y + primary.errY * 0.5;
             primary.wHit = true;
           }
-          for (final o in mates) {
-            if (o != primary) {
-              o.tx = _baseX(o);
-              o.ty = _baseY(o);
+
+          // Companheiro (quem recepcionou) avança para a rede para preparar o ataque
+          final partner = mates.firstWhere((p) => p != primary, orElse: () => mates.first);
+          if (partner != primary) {
+            partner.tx = team == 0 ? 330.0 : kL - 330.0;
+            partner.ty = (kWd * 0.5 + partner.errY * 0.3).clamp(50.0, kWd - 50.0).toDouble();
+            partner.wHit = false;
+            partner.wJump = false;
+
+            // Defesa de emergência caso o passe caia perto do parceiro
+            if (_eligible(partner) && bz < 125) {
+              final dPartnerBall = math.sqrt((bx - partner.x) * (bx - partner.x) + (by - partner.y) * (by - partner.y));
+              final dPrimaryBall = primary != null
+                  ? math.sqrt((bx - primary.x) * (bx - primary.x) + (by - primary.y) * (by - primary.y))
+                  : 999.0;
+              if (dPartnerBall <= 110.0 && (dPrimaryBall > dPartnerBall + 35.0 || bz < 80.0)) {
+                partner.tx = bx;
+                partner.ty = by;
+                partner.wHit = true;
+              }
             }
           }
         } else if (!out &&
             lastTeam == team &&
             ballSide == team &&
             touches[team] == 2) {
-          // ATAQUE
+          // ============================================================
+          // 3. ATAQUE / CORTADA (Toque 2) - Trava no atacante
+          // ============================================================
           final pr = _predict(150);
-          primary = _pick(mates, pr.x, pr.y);
+          final curLock = _lockedPlayer[team];
+          final needsLock = curLock == null ||
+              !_eligible(curLock) ||
+              _lockedPhase[team] != 2 ||
+              _lockedTouches[team] != touches[team];
+
+          if (needsLock) {
+            primary = _pickClosest(mates, pr.x, pr.y);
+            _lockedPlayer[team] = primary;
+            _lockedPhase[team] = 2;
+            _lockedTouches[team] = touches[team];
+          } else {
+            primary = curLock;
+          }
+
           if (_isHumanTeam(team) && primary != null) marker[team] = pr;
           if (primary != null) {
             primary.tx = pr.x - dirN * 10 + primary.errX * 0.5;
@@ -742,12 +861,38 @@ class VolleyGame extends FlameGame with KeyboardEvents {
               primary.wJump = true;
             }
           }
+
+          // Companheiro (levantador) faz cobertura de ataque
+          final partner = mates.firstWhere((p) => p != primary, orElse: () => mates.first);
+          if (partner != primary) {
+            partner.tx = team == 0 ? 210.0 : kL - 210.0;
+            partner.ty = by.clamp(50.0, kWd - 50.0).toDouble();
+            partner.wHit = false;
+            partner.wJump = false;
+
+            if (_eligible(partner) && bz < 110) {
+              final dPartnerBall = math.sqrt((bx - partner.x) * (bx - partner.x) + (by - partner.y) * (by - partner.y));
+              final dPrimaryBall = primary != null
+                  ? math.sqrt((bx - primary.x) * (bx - primary.x) + (by - primary.y) * (by - primary.y))
+                  : 999.0;
+              if (dPartnerBall <= 100.0 && (dPrimaryBall > dPartnerBall + 30.0 || bz < 75.0)) {
+                partner.tx = bx;
+                partner.ty = by;
+                partner.wHit = true;
+              }
+            }
+          }
         } else if (lastTeam != team) {
-          // DEFESA / BLOQUEIO NA REDE
+          // ============================================================
+          // 4. DEFESA / BLOQUEIO NA REDE (Bola no campo adversário)
+          // ============================================================
+          _clearLocks(team);
           final opp = 1 - team;
           final isOppAttacking = (touches[opp] >= 1 && ballSide == opp) ||
               (team == 0 ? bvx < -120 : bvx > 120);
           final blocker = mates.firstWhere((m) => m.slot == 1);
+          final defender = mates.firstWhere((m) => m.slot == 0);
+          primary = defender;
           if (isOppAttacking) {
             blocker.tx = kMid - dirN * 32;
             blocker.ty = by.clamp(25.0, kWd - 25).toDouble();
@@ -768,6 +913,8 @@ class VolleyGame extends FlameGame with KeyboardEvents {
               blocker.wJump = true;
             }
           }
+        } else {
+          _clearLocks(team);
         }
       }
       controlled[team] = primary ?? controlled[team] ?? mates.first;
@@ -901,7 +1048,15 @@ class VolleyGame extends FlameGame with KeyboardEvents {
     final hz = p.z + (p.onGround ? 65 : 86);
     final dx = bx - hx, dy = (by - p.y) * 0.8, dz = bz - hz;
     final baseReach = difficulty == 0 ? 140.0 : (difficulty == 1 ? 125.0 : 115.0);
-    final reach = p.human ? (p.onGround ? baseReach : baseReach + 10.0) : (p.onGround ? 85.0 : 95.0);
+    final double reach;
+    if (p.human) {
+      reach = p.onGround ? baseReach : baseReach + 10.0;
+    } else if (_isHumanTeam(p.team)) {
+      // Parceiro no time humano: alcance aprimorado para salvar a bola em defesa de emergência
+      reach = p.onGround ? 115.0 : 125.0;
+    } else {
+      reach = p.onGround ? 85.0 : 95.0;
+    }
     if (dx * dx + dy * dy + dz * dz > reach * reach) return;
     if (p.human && !p.onGround && pads[p.team].hitBuf > 0.05 && p.vz > 220 && bz > hz + 20) {
       return;
@@ -942,9 +1097,16 @@ class VolleyGame extends FlameGame with KeyboardEvents {
 
     // No toque 1 (recepção), por padrão passa para o companheiro armar o levantamento e possibilitar a cortada,
     // a menos que o jogador empurre o analógico intencionalmente para a frente (aimX > 0.65) para devolver de primeira.
-    final wantPassToMate = p.human
-        ? (isSetAction || (idx == 0 && aimX <= 0.65))
-        : (!air && idx == 0 && _rnd.nextDouble() < (difficulty == 0 ? 0.35 : 0.65));
+    final bool wantPassToMate;
+    if (p.human) {
+      wantPassToMate = isSetAction || (idx == 0 && aimX <= 0.65);
+    } else if (_isHumanTeam(t)) {
+      // Parceiro no time humano: no toque 0 (defesa/recepção) ou toque 1 (levantamento),
+      // arma a jogada com precisão para o jogador humano finalizar
+      wantPassToMate = idx < 2;
+    } else {
+      wantPassToMate = !air && idx == 0 && _rnd.nextDouble() < (difficulty == 0 ? 0.35 : 0.65);
+    }
 
     if (air && nearNet && bz > kNetH - 25 && !isSetAction) {
       // CORTADA POTENTE (Spike) - Ataque aéreo direto para a quadra adversária!
@@ -1019,12 +1181,14 @@ class VolleyGame extends FlameGame with KeyboardEvents {
       ArcadeAudio.playTouch();
       cameraShake.addTrauma(eval.shakeTrauma);
       timingPopups.add(
-        text: isSetAction ? 'LEVANTAMENTO' : 'PASSE',
+        text: isSetAction ? 'LEVANTAMENTO' : (_isHumanTeam(t) && !p.human && idx == 0 ? 'DEFESA' : 'PASSE'),
         position: Offset(_sx(p.x, p.y), _sy(p.y, p.z) - 44),
         color: isSetAction ? const Color(0xFF00E676) : const Color(0xFF40C4FF),
       );
       if (isSetAction) {
         _msg('LEVANTAMENTO PERFEITO!', 0.8);
+      } else if (_isHumanTeam(t) && !p.human && idx == 0) {
+        _msg('DEFESA DO PARCEIRO! 🛡️', 0.85);
       }
       ballSquashFactor = 1.15;
       ballSquashTime = 0.08;
@@ -1332,6 +1496,7 @@ class VolleyGame extends FlameGame with KeyboardEvents {
   }
 
   void _point(int scorer, String prefix) {
+    _clearLocks();
     score[scorer]++;
     serving = scorer;
     phase = Phase.pointPause;

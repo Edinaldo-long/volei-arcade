@@ -624,5 +624,154 @@ void main() {
       final picture = recorder.endRecording();
       expect(picture, isNotNull);
     });
+
+    test('Hybrid Mobile Arcade Controls: Auto-Switch locks arrow on closest player during reception', () {
+      final game = VolleyGame();
+      game.startMatch(1); // Amistoso (Time 0 humano)
+      game.phase = Phase.rally;
+      game.ballHeld = false;
+      game.outgoing = false;
+      game.lastTeam = 1; // Bola veio do adversário
+      game.touches[0] = 0;
+      game.touches[1] = 0;
+
+      // Bola projetada para cair no fundo da quadra perto do jogador 0 (x = 160, y = 320)
+      game.bx = 200;
+      game.by = 310;
+      game.bz = 180;
+      game.bvx = -120;
+      game.bvy = 10;
+      game.bvz = -20;
+      game.ballSide = 0;
+
+      // Executa frame
+      game.update(1 / 60);
+
+      // Jogador 0 (fundo) deve ter sido selecionado e a seta travada nele
+      final locked = game.controlled[0];
+      expect(locked, isNotNull);
+      expect(locked!.slot, equals(0));
+      expect(locked.human, isTrue);
+
+      // Agora simula o jogador movendo o analógico e mudando de posição
+      game.pads[0].ax = 1.0;
+      game.pads[0].ay = -1.0;
+
+      // Mesmo que o jogador 0 se afaste e o jogador 1 (rede) esteja mais perto de outro ponto,
+      // a seta NÃO pula nem oscila! Ela permanece estritamente travada no jogador 0 até o toque
+      for (var i = 0; i < 10; i++) {
+        game.update(1 / 60);
+        expect(game.controlled[0], equals(locked),
+            reason: 'A seta deve permanecer estritamente travada no mesmo jogador durante a jogada');
+      }
+    });
+
+    test('Hybrid Mobile Arcade Controls: Auto-Switch passes arrow to partner on touch 1 and attacker on touch 2', () {
+      final game = VolleyGame();
+      game.startMatch(1);
+      game.phase = Phase.rally;
+      game.ballHeld = false;
+      game.outgoing = false;
+      game.lastTeam = 0;
+      game.touches[0] = 1; // 1 toque já feito (recepção concluída)
+      game.lastToucher = game.players[0]; // Jogador 0 recepcionou
+
+      game.bx = 300;
+      game.by = 200;
+      game.bz = 150;
+      game.bvx = 20;
+      game.bvy = 0;
+      game.bvz = 50;
+      game.ballSide = 0;
+
+      game.update(1 / 60);
+
+      // No levantamento (toque 1), a seta deve passar para o parceiro (jogador 1)
+      expect(game.controlled[0], equals(game.players[1]));
+
+      // Agora simula que o parceiro levantou a bola (toque 2)
+      game.touches[0] = 2;
+      game.lastToucher = game.players[1];
+      game.bx = 350;
+      game.by = 220;
+      game.bz = 180;
+      game.update(1 / 60);
+
+      // No ataque (toque 2), a seta deve passar de volta para o atacante (jogador 0)
+      expect(game.controlled[0], equals(game.players[0]));
+    });
+
+    test('Hybrid Mobile Arcade Controls: Partner covers complementary space on court', () {
+      final game = VolleyGame();
+      game.startMatch(1);
+      game.phase = Phase.rally;
+      game.ballHeld = false;
+      game.outgoing = false;
+      game.lastTeam = 1;
+      game.touches[0] = 0;
+      game.ballSide = 0;
+
+      // Bola caindo na metade superior da quadra (y = 120, fundo x = 150)
+      game.bx = 150;
+      game.by = 120;
+      game.bz = 120;
+      game.bvx = -10;
+      game.bvy = 0;
+      game.bvz = -50;
+
+      game.update(1 / 60);
+
+      // O jogador controlado assume a bola
+      final active = game.controlled[0];
+      final partner = game.players.where((p) => p.team == 0 && p != active).first;
+
+      // O parceiro deve se posicionar na metade complementar (inferior y > 250) e frente de quadra
+      expect(partner.ty, greaterThan(250.0));
+      expect(partner.tx, greaterThan(240.0));
+      expect(partner.wHit, isFalse);
+    });
+
+    test('Hybrid Mobile Arcade Controls: Partner emergency defense reflex rescues imminent ball', () {
+      final game = VolleyGame();
+      game.startMatch(1);
+      game.phase = Phase.rally;
+      game.ballHeld = false;
+      game.outgoing = false;
+      game.lastTeam = 1;
+      game.touches[0] = 0;
+      game.ballSide = 0;
+
+      // Inicializa jogada com a bola vindo na direção do jogador 0 (ativo), travando a seta nele
+      game.players[0].x = 120;
+      game.players[0].y = 350;
+      game.players[1].x = 320;
+      game.players[1].y = 150;
+
+      game.bx = 130;
+      game.by = 345;
+      game.bz = 180;
+      game.bvx = 0;
+      game.bvy = 0;
+      game.bvz = -50;
+      game.update(1 / 60);
+
+      // Confirma que a seta travou no jogador 0 e o jogador 1 é o parceiro
+      expect(game.controlled[0], equals(game.players[0]));
+
+      // Agora a bola sofre desvio brusco e desce perto do parceiro (jogador 1)
+      game.bx = 325;
+      game.by = 155;
+      game.bz = 70; // Bola baixa prestes a tocar o chão
+      game.bvx = 0;
+      game.bvy = 0;
+      game.bvz = -80;
+
+      game.update(1 / 60);
+
+      // O parceiro (jogador 1) deve ativar a defesa de emergência, rebater e salvar a jogada
+      final partner = game.players[1];
+      expect(game.lastToucher, equals(partner));
+      expect(game.touches[0], equals(1));
+    });
   });
 }
