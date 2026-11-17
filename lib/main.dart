@@ -666,7 +666,9 @@ class VolleyGame extends FlameGame with KeyboardEvents {
       final isSteering = _isHumanTeam(team) && (pad.dx.abs() > 0.08 || pad.dy.abs() > 0.08);
       if (isSteering) {
         final curDist = math.sqrt((cur.x - x) * (cur.x - x) + (cur.y - y) * (cur.y - y));
-        if (curDist <= bestDist + 220.0) {
+        // Histerese balanceada (85px): evita troca acidental em bolas disputadas no meio,
+        // mas permite passar imediatamente para o parceiro quando a bola vai na área dele.
+        if (curDist <= bestDist + 85.0) {
           best = cur;
         }
       }
@@ -686,6 +688,86 @@ class VolleyGame extends FlameGame with KeyboardEvents {
       p.errX = (_rnd.nextDouble() * 2 - 1) * (1 - l) * 80;
       p.errY = (_rnd.nextDouble() * 2 - 1) * (1 - l) * 65;
       p.jumpErr = (_rnd.nextDouble() * 2 - 1) * (1 - l) * 0.1;
+    }
+  }
+
+  /// IA ativa do parceiro (sem a seta): combina interceptação proativa de bolas próximas,
+  /// salvamento de emergência e cobertura dinâmica para que o parceiro nunca fique estático.
+  void _applyPartnerAi({
+    required int team,
+    required Player partner,
+    required Player? primary,
+    required Pred pr,
+    required double coverX,
+    required double coverY,
+    bool allowJumpSave = false,
+  }) {
+    final loX = team == 0 ? 15.0 : kMid + 22.0;
+    final hiX = team == 0 ? kMid - 22.0 : kL - 15.0;
+
+    // 1. Posicionamento padrão de cobertura dinâmica
+    partner.tx = coverX.clamp(loX, hiX).toDouble();
+    partner.ty = coverY.clamp(25.0, kWd - 25.0).toDouble();
+    partner.wHit = false;
+    partner.wJump = false;
+
+    if (!_eligible(partner)) return;
+
+    final ballOnMySide =
+        ballSide == team || (team == 0 ? pr.x < kMid + 25 : pr.x > kMid - 25);
+    if (!ballOnMySide) return;
+
+    final dPartnerBall = math.sqrt(
+        (bx - partner.x) * (bx - partner.x) + (by - partner.y) * (by - partner.y));
+    final dPrimaryBall = primary != null
+        ? math.sqrt((bx - primary.x) * (bx - primary.x) + (by - primary.y) * (by - primary.y))
+        : 999.0;
+
+    final dPartnerPred = math.sqrt(
+        (pr.x - partner.x) * (pr.x - partner.x) + (pr.y - partner.y) * (pr.y - partner.y));
+    final dPrimaryPred = primary != null
+        ? math.sqrt((pr.x - primary.x) * (pr.x - primary.x) + (pr.y - primary.y) * (pr.y - primary.y))
+        : 999.0;
+
+    // Gatilho 1: Bola passando perto do parceiro agora (reflexo rápido)
+    final closeProximity = dPartnerBall <= 165.0 &&
+        bz < 185.0 &&
+        (dPartnerBall <= dPrimaryBall + 20.0 || bz < 110.0 || pr.t < 0.42);
+
+    // Gatilho 2: Projeção de queda está na zona do parceiro (interceptação antecipada mesmo com bola alta)
+    final zoneIntercept = dPartnerPred <= 220.0 &&
+        (dPartnerPred < dPrimaryPred - 10.0 ||
+            (dPrimaryPred > 200.0 && dPartnerPred <= 190.0));
+
+    // Gatilho 3: Bola prestes a cair ao alcance do parceiro enquanto o ativo está longe
+    final imminentRescue = (pr.t < 0.42 || bz < 90.0) &&
+        dPrimaryPred > 115.0 &&
+        dPrimaryBall > 115.0 &&
+        (dPartnerPred <= 155.0 || dPartnerBall <= 155.0);
+
+    // Se o parceiro está no ar na rede bloqueando uma cortada adversária, deixa o _blockCheck()
+    // executar o Monster Block para baixo sem sobrescrever com um toque comum.
+    final isAirBlockingNet = !partner.onGround &&
+        (partner.x - kMid).abs() <= 140.0 &&
+        bz >= kNetH - 35.0 &&
+        (team == 0 ? bvx < -100.0 : bvx > 100.0);
+
+    if (closeProximity || zoneIntercept || imminentRescue) {
+      final useCurrentBall = bz < 110.0 || pr.t < 0.24 || dPartnerBall < 120.0;
+      partner.tx = (useCurrentBall ? bx : pr.x).clamp(loX, hiX).toDouble();
+      partner.ty = (useCurrentBall ? by : pr.y).clamp(20.0, kWd - 20.0).toDouble();
+      if (!isAirBlockingNet) {
+        partner.wHit = true;
+      }
+
+      if (allowJumpSave &&
+          partner.onGround &&
+          bz > 100.0 &&
+          bz < 175.0 &&
+          dPartnerBall <= 125.0 &&
+          pr.t < 0.35) {
+        partner.wJump = true;
+      }
     }
   }
 
@@ -740,40 +822,26 @@ class VolleyGame extends FlameGame with KeyboardEvents {
             primary.wHit = true;
           }
 
-          // IA do Parceiro (sem a seta): Cobertura complementar inteligente
+          // IA ativa do Parceiro (sem a seta): cobertura dinâmica + interceptação/defesa imediata
           final partner = mates.firstWhere((p) => p != primary, orElse: () => mates.first);
           if (partner != primary) {
-            final isBackcourt = team == 0 ? pr.x < 240 : pr.x > kL - 240;
-            partner.tx = team == 0
-                ? (isBackcourt ? 295.0 : 150.0)
-                : (isBackcourt ? kL - 295.0 : kL - 150.0);
-            partner.ty = (pr.y < kWd * 0.5 ? kWd * 0.72 : kWd * 0.28).clamp(25.0, kWd - 25.0).toDouble();
-            partner.wHit = false;
-            partner.wJump = false;
+            final isBackcourt = team == 0 ? pr.x < 250 : pr.x > kL - 250;
+            final coverX = team == 0
+                ? (isBackcourt ? 305.0 : 160.0)
+                : (isBackcourt ? kL - 305.0 : kL - 160.0);
+            final coverY = pr.y < kWd * 0.5
+                ? (pr.y + 165.0).clamp(270.0, kWd - 50.0).toDouble()
+                : (pr.y - 165.0).clamp(50.0, 230.0).toDouble();
 
-            // Reflexo de Defesa de Emergência no Parceiro:
-            // Se a bola passar num raio curto do parceiro ou estiver prestes a cair e fora do alcance do ativo,
-            // o parceiro reage automaticamente para rebater/levantar e salvar o ponto.
-            if (_eligible(partner) && bz < 140) {
-              final dPartnerBall = math.sqrt((bx - partner.x) * (bx - partner.x) + (by - partner.y) * (by - partner.y));
-              final dPrimaryBall = primary != null
-                  ? math.sqrt((bx - primary.x) * (bx - primary.x) + (by - primary.y) * (by - primary.y))
-                  : 999.0;
-
-              final emergencyDist = dPartnerBall <= 125.0;
-              final primaryFar = dPrimaryBall > dPartnerBall + 30.0;
-              final ballImminent = bz < 85.0 || pr.t < 0.26;
-              final fastSpikeNear = pr.t < 0.35 && dPartnerBall <= 140.0 && dPrimaryBall > 105.0;
-
-              if (emergencyDist && (primaryFar || ballImminent || fastSpikeNear)) {
-                partner.tx = bx;
-                partner.ty = by;
-                partner.wHit = true;
-                if (partner.onGround && bz > 95 && bz < 160) {
-                  partner.wJump = true;
-                }
-              }
-            }
+            _applyPartnerAi(
+              team: team,
+              partner: partner,
+              primary: primary,
+              pr: pr,
+              coverX: coverX,
+              coverY: coverY,
+              allowJumpSave: true,
+            );
           }
         } else if (!out &&
             lastTeam == team &&
@@ -805,26 +873,18 @@ class VolleyGame extends FlameGame with KeyboardEvents {
             primary.wHit = true;
           }
 
-          // Companheiro (quem recepcionou) avança para a rede para preparar o ataque
+          // Companheiro (quem recepcionou) avança para a rede e cobre bolas desviadas
           final partner = mates.firstWhere((p) => p != primary, orElse: () => mates.first);
           if (partner != primary) {
-            partner.tx = team == 0 ? 330.0 : kL - 330.0;
-            partner.ty = (kWd * 0.5 + partner.errY * 0.3).clamp(50.0, kWd - 50.0).toDouble();
-            partner.wHit = false;
-            partner.wJump = false;
-
-            // Defesa de emergência caso o passe caia perto do parceiro
-            if (_eligible(partner) && bz < 125) {
-              final dPartnerBall = math.sqrt((bx - partner.x) * (bx - partner.x) + (by - partner.y) * (by - partner.y));
-              final dPrimaryBall = primary != null
-                  ? math.sqrt((bx - primary.x) * (bx - primary.x) + (by - primary.y) * (by - primary.y))
-                  : 999.0;
-              if (dPartnerBall <= 110.0 && (dPrimaryBall > dPartnerBall + 35.0 || bz < 80.0)) {
-                partner.tx = bx;
-                partner.ty = by;
-                partner.wHit = true;
-              }
-            }
+            _applyPartnerAi(
+              team: team,
+              partner: partner,
+              primary: primary,
+              pr: pr,
+              coverX: team == 0 ? 335.0 : kL - 335.0,
+              coverY: (by * 0.35 + kWd * 0.5 * 0.65).clamp(50.0, kWd - 50.0).toDouble(),
+              allowJumpSave: true,
+            );
           }
         } else if (!out &&
             lastTeam == team &&
@@ -862,25 +922,18 @@ class VolleyGame extends FlameGame with KeyboardEvents {
             }
           }
 
-          // Companheiro (levantador) faz cobertura de ataque
+          // Companheiro (levantador) faz cobertura de ataque e resgate de emergência
           final partner = mates.firstWhere((p) => p != primary, orElse: () => mates.first);
           if (partner != primary) {
-            partner.tx = team == 0 ? 210.0 : kL - 210.0;
-            partner.ty = by.clamp(50.0, kWd - 50.0).toDouble();
-            partner.wHit = false;
-            partner.wJump = false;
-
-            if (_eligible(partner) && bz < 110) {
-              final dPartnerBall = math.sqrt((bx - partner.x) * (bx - partner.x) + (by - partner.y) * (by - partner.y));
-              final dPrimaryBall = primary != null
-                  ? math.sqrt((bx - primary.x) * (bx - primary.x) + (by - primary.y) * (by - primary.y))
-                  : 999.0;
-              if (dPartnerBall <= 100.0 && (dPrimaryBall > dPartnerBall + 30.0 || bz < 75.0)) {
-                partner.tx = bx;
-                partner.ty = by;
-                partner.wHit = true;
-              }
-            }
+            _applyPartnerAi(
+              team: team,
+              partner: partner,
+              primary: primary,
+              pr: _predict(75),
+              coverX: team == 0 ? 215.0 : kL - 215.0,
+              coverY: by.clamp(50.0, kWd - 50.0).toDouble(),
+              allowJumpSave: false,
+            );
           }
         } else if (lastTeam != team) {
           // ============================================================
@@ -893,9 +946,12 @@ class VolleyGame extends FlameGame with KeyboardEvents {
           final blocker = mates.firstWhere((m) => m.slot == 1);
           final defender = mates.firstWhere((m) => m.slot == 0);
           primary = defender;
+
+          // Bloqueador acompanha ativamente o alinhamento da bola na rede (nunca fica estático)
+          blocker.tx = kMid - dirN * (isOppAttacking ? 32.0 : 62.0);
+          blocker.ty = by.clamp(35.0, kWd - 35.0).toDouble();
+
           if (isOppAttacking) {
-            blocker.tx = kMid - dirN * 32;
-            blocker.ty = by.clamp(25.0, kWd - 25).toDouble();
             final pr = _predict(148);
             // No modo fácil, a CPU raramente salta para bloquear (20%), permitindo que a cortada do jogador passe
             final willBlock = (team == 0)
@@ -911,6 +967,17 @@ class VolleyGame extends FlameGame with KeyboardEvents {
                 bz > 105 &&
                 pr.t < 0.50 + blocker.jumpErr) {
               blocker.wJump = true;
+            }
+          }
+
+          // Se uma largadinha/desvio cair no nosso lado perto do bloqueador, ele rebate imediatamente
+          if (ballSide == team && bz < 165 && _eligible(blocker)) {
+            final dBlockerBall = math.sqrt(
+                (bx - blocker.x) * (bx - blocker.x) + (by - blocker.y) * (by - blocker.y));
+            if (dBlockerBall <= 150.0) {
+              blocker.tx = bx;
+              blocker.ty = by;
+              blocker.wHit = true;
             }
           }
         } else {
@@ -960,7 +1027,7 @@ class VolleyGame extends FlameGame with KeyboardEvents {
       final spd = p.human
           ? (difficulty == 0 ? 360.0 : (difficulty == 1 ? 330.0 : 300.0))
           : (_isHumanTeam(p.team)
-              ? 200 + 160 * lvl
+              ? 355.0
               : (difficulty == 0 ? 90 + 90 * lvl : (difficulty == 1 ? 100 + 130 * lvl : 110 + 160 * lvl)));
       final airK = p.onGround ? 1.0 : 0.6;
       p.x += mx * spd * airK * dt;
@@ -1052,8 +1119,8 @@ class VolleyGame extends FlameGame with KeyboardEvents {
     if (p.human) {
       reach = p.onGround ? baseReach : baseReach + 10.0;
     } else if (_isHumanTeam(p.team)) {
-      // Parceiro no time humano: alcance aprimorado para salvar a bola em defesa de emergência
-      reach = p.onGround ? 115.0 : 125.0;
+      // Parceiro no time humano: alcance generoso para salvar bolas próximas com segurança
+      reach = p.onGround ? 130.0 : 140.0;
     } else {
       reach = p.onGround ? 85.0 : 95.0;
     }
@@ -1169,12 +1236,22 @@ class VolleyGame extends FlameGame with KeyboardEvents {
     } else if (wantPassToMate) {
       // PASSE / LEVANTAMENTO PARA COMPANHEIRO DE TIME
       final eval = TimingEvaluator.evaluateGroundTouch(dist2D: dist2D, touchIndex: idx);
+      var passTx = kMid - dirOpp * (120 - 20 * aimX);
+      var passTy = gyP;
+      var passApex = isSetAction ? 280.0 : 240.0;
+      if (_isHumanTeam(t) && !p.human) {
+        final humanMate = players.firstWhere((m) => m.team == t && m != p, orElse: () => p);
+        // Parceiro levanta alto e na direção do corredor de ataque do jogador humano
+        passTx = kMid - dirOpp * 135.0;
+        passTy = (humanMate.y * 0.6 + kWd * 0.5 * 0.4).clamp(60.0, kWd - 60.0).toDouble();
+        passApex = 270.0;
+      }
       BallPhysicsEngine.launchTo(
         ball,
-        tx: kMid - dirOpp * (120 - 20 * aimX),
-        ty: gyP,
+        tx: passTx,
+        ty: passTy,
         tz: 75,
-        apexZ: isSetAction ? 280 : 240,
+        apexZ: passApex,
         topspin: -3.0,
       );
       outgoing = false;
@@ -1387,6 +1464,12 @@ class VolleyGame extends FlameGame with KeyboardEvents {
       dt,
       onNetCollision: (isTape) {
         if (phase == Phase.rally) {
+          // Se a bola bateu na rede e voltou para o próprio lado, libera o estado outgoing para defesa imediata
+          if (outgoing &&
+              ((lastTeam == 0 && bvx <= 0) || (lastTeam == 1 && bvx >= 0))) {
+            outgoing = false;
+            _clearLocks(lastTeam);
+          }
           ArcadeAudio.playBlock();
           if (isTape) {
             cameraShake.addTrauma(0.35);

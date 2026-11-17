@@ -773,5 +773,118 @@ void main() {
       expect(game.lastToucher, equals(partner));
       expect(game.touches[0], equals(1));
     });
+
+    test('Proactive Partner AI: moves early to intercept high ball projected in partner zone', () {
+      final game = VolleyGame();
+      game.startMatch(1);
+      game.phase = Phase.rally;
+      game.ballHeld = false;
+      game.outgoing = false;
+      game.lastTeam = 1;
+      game.touches[0] = 0;
+      game.ballSide = 0;
+
+      // Trava seta no jogador 0 no fundo esquerdo
+      game.players[0].x = 110;
+      game.players[0].y = 380;
+      game.players[1].x = 320;
+      game.players[1].y = 140;
+
+      game.bx = 120;
+      game.by = 370;
+      game.bz = 200;
+      game.bvx = 0;
+      game.bvy = 0;
+      game.bvz = -40;
+      game.update(1 / 60);
+      expect(game.controlled[0], equals(game.players[0]));
+
+      // Bola alta (bz = 210) projetada para cair em (360, 170) — zona do parceiro, longe do jogador 0
+      game.bx = 360;
+      game.by = 170;
+      game.bz = 210;
+      game.bvx = 0;
+      game.bvy = 0;
+      game.bvz = -60;
+
+      final startPartnerX = game.players[1].x;
+      for (var i = 0; i < 6; i++) {
+        game.update(1 / 60);
+      }
+
+      // Parceiro não fica estático: corre antecipadamente na direção da bola alta e ativa wHit
+      expect(game.players[1].x, greaterThan(startPartnerX + 10));
+      expect(game.players[1].wHit, isTrue);
+    });
+
+    test('Proactive Partner AI: rescues fast ball passing near partner without freezing', () {
+      final game = VolleyGame();
+      game.startMatch(1);
+      game.phase = Phase.rally;
+      game.ballHeld = false;
+      game.outgoing = false;
+      game.lastTeam = 1;
+      game.touches[0] = 0;
+      game.ballSide = 0;
+
+      // Trava jogador 0 longe no fundo
+      game.players[0].x = 90;
+      game.players[0].y = 400;
+      game.players[1].x = 310;
+      game.players[1].y = 180;
+
+      game.bx = 100;
+      game.by = 390;
+      game.bz = 180;
+      game.bvx = 0;
+      game.bvy = 0;
+      game.bvz = -30;
+      game.update(1 / 60);
+      expect(game.controlled[0], equals(game.players[0]));
+
+      // Simula bola rápida cruzando a ~110px do parceiro (bz = 135)
+      game.bx = 400;
+      game.by = 200;
+      game.bz = 135;
+      game.bvx = -260;
+      game.bvy = -20;
+      game.bvz = -120;
+
+      var rescued = false;
+      for (var i = 0; i < 30; i++) {
+        game.update(1 / 60);
+        if (game.lastToucher == game.players[1] && game.touches[0] == 1) {
+          rescued = true;
+          break;
+        }
+      }
+
+      expect(rescued, isTrue,
+          reason: 'O parceiro deve reagir, correr e salvar a bola que passa perto dele');
+    });
+
+    test('Net rebound clears outgoing flag so team does not freeze', () {
+      final game = VolleyGame();
+      game.startMatch(1);
+      game.phase = Phase.rally;
+      game.ballHeld = false;
+      game.lastTeam = 0;
+      game.touches[0] = 1;
+      game.outgoing = true;
+      game.ballSide = 0;
+
+      // Bola bate no meio da rede (kMid = 500, z < kNetH = 128) indo para a direita
+      game.bx = 492;
+      game.by = 250;
+      game.bz = 80;
+      game.bvx = 350;
+      game.bvy = 0;
+      game.bvz = 0;
+
+      game.update(1 / 30);
+
+      // Após bater na rede e voltar para o próprio campo, outgoing deve ser limpo
+      expect(game.outgoing, isFalse);
+    });
   });
 }
